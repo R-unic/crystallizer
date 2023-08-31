@@ -18,7 +18,6 @@ import {
   getLineAndCharacterOfPosition,
   ObjectLiteralExpression,
   NodeArray,
-  ObjectLiteralElementLike,
   FunctionDeclaration,
   ParameterDeclaration,
   ExpressionStatement,
@@ -26,7 +25,8 @@ import {
   ReturnStatement,
   CallExpression,
   BinaryExpression,
-  PrefixUnaryExpression
+  PrefixUnaryExpression,
+  IfStatement
 } from "typescript";
 import Log from "./logger";
 import Util from "./utility";
@@ -43,7 +43,7 @@ interface MetaValues {
 export default class CrystalRenderer {
   private indentation = 0;
 
-  private readonly generated: string[] = ["alias Num = Int64 | Int32 | Int16 | Int8 | Float64 | Float32 | Float16 | Float8 | UInt64 | UInt32 | UInt16 | UInt8\n"];
+  private readonly generated: string[] = ["alias Num = Int64 | Int32 | Int16 | Int8 | Float64 | Float32 | UInt64 | UInt32 | UInt16 | UInt8\n"];
   private readonly flags: string[] = [];
   private readonly meta: Record<MetaKey, MetaValues[MetaKey]> = {
     currentArrayType: undefined,
@@ -143,6 +143,7 @@ export default class CrystalRenderer {
           this.walk(statement.expression);
         }
 
+        this.newLine();
         break;
       }
       case SyntaxKind.Parameter: {
@@ -184,10 +185,42 @@ export default class CrystalRenderer {
           this.walkType(declaration.type);
         }
 
-        if (declaration.body)
+        if (declaration.body) {
           this.walk(declaration.body);
+          this.generated.pop();
+          this.generated.pop();
+        }
 
         this.newLine();
+        this.append("end");
+        this.newLine();
+        break;
+      }
+
+      case SyntaxKind.IfStatement: {
+        const ifStatement = <IfStatement>node;
+        this.append("if ");
+        this.walk(ifStatement.expression)
+
+        if (ifStatement.thenStatement.kind !== SyntaxKind.Block) {
+          this.pushIndentation();
+          this.newLine();
+          this.popIndentation();
+        }
+
+        this.walk(ifStatement.thenStatement);
+        if (ifStatement.elseStatement) {
+          this.newLine();
+          this.append(ifStatement.elseStatement.kind === SyntaxKind.IfStatement ? "els" : "else");
+          if (ifStatement.elseStatement.kind !== SyntaxKind.Block) {
+            this.pushIndentation();
+            this.newLine();
+            this.popIndentation();
+          }
+
+          this.walk(ifStatement.elseStatement);
+        }
+
         this.append("end");
         this.newLine();
         break;
@@ -275,7 +308,7 @@ export default class CrystalRenderer {
       case SyntaxKind.BinaryExpression: {
         const binary = <BinaryExpression>node;
         this.walk(binary.left);
-        this.append(` ${Util.syntaxKindToText(binary.operatorToken.kind)} `)
+        this.append(` ${binary.operatorToken.getText(this.sourceNode)} `)
         this.walk(binary.right);
         break;
       }
