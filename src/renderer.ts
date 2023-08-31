@@ -26,7 +26,8 @@ import {
   CallExpression,
   BinaryExpression,
   PrefixUnaryExpression,
-  IfStatement
+  IfStatement,
+  PropertyAccessExpression
 } from "typescript";
 import Log from "./logger";
 import Util from "./utility";
@@ -120,6 +121,34 @@ export default class CrystalRenderer {
         break;
       }
 
+      case SyntaxKind.BinaryExpression: {
+        const binary = <BinaryExpression>node;
+        this.walk(binary.left);
+        this.append(` ${binary.operatorToken.getText(this.sourceNode)} `)
+        this.walk(binary.right);
+        break;
+      }
+      case SyntaxKind.PrefixUnaryExpression: {
+        const unary = <PrefixUnaryExpression>node;
+        this.walk(unary.operand);
+        this.append(` ${Util.syntaxKindToText(unary.operator)} `)
+        break;
+      }
+      case SyntaxKind.PropertyAccessExpression: {
+        const access = <PropertyAccessExpression>node;
+        const objectText = access.expression.getText(this.sourceNode);
+        const propertyName = access.name.getText(this.sourceNode);
+        if (objectText === "console")
+          if (propertyName === "log") {
+            this.append("puts")
+            break;
+          }
+
+        this.walk(access.expression);
+        this.append(".")
+        this.walk(access.name);
+        break;
+      }
       case SyntaxKind.CallExpression: {
         const call = <CallExpression>node;
         this.walk(call.expression);
@@ -135,6 +164,7 @@ export default class CrystalRenderer {
         }
         break;
       }
+
       case SyntaxKind.ReturnStatement: {
         const statement = <ReturnStatement>node;
         this.append("return");
@@ -225,6 +255,10 @@ export default class CrystalRenderer {
         this.newLine();
         break;
       }
+      case SyntaxKind.ExpressionStatement: {
+        this.walk((<ExpressionStatement>node).expression);
+        break;
+      }
 
       case SyntaxKind.ObjectLiteralExpression: {
         const object = <ObjectLiteralExpression>node;
@@ -303,23 +337,6 @@ export default class CrystalRenderer {
           this.walk(statement);
 
         this.popIndentation();
-        break;
-      }
-      case SyntaxKind.BinaryExpression: {
-        const binary = <BinaryExpression>node;
-        this.walk(binary.left);
-        this.append(` ${binary.operatorToken.getText(this.sourceNode)} `)
-        this.walk(binary.right);
-        break;
-      }
-      case SyntaxKind.PrefixUnaryExpression: {
-        const unary = <PrefixUnaryExpression>node;
-        this.walk(unary.operand);
-        this.append(` ${Util.syntaxKindToText(unary.operator)} `)
-        break;
-      }
-      case SyntaxKind.ExpressionStatement: {
-        this.walk((<ExpressionStatement>node).expression);
         break;
       }
       case SyntaxKind.SyntaxList: {
