@@ -18,7 +18,13 @@ import {
   getLineAndCharacterOfPosition,
   ObjectLiteralExpression,
   NodeArray,
-  ObjectLiteralElementLike
+  ObjectLiteralElementLike,
+  FunctionDeclaration,
+  ParameterDeclaration,
+  ExpressionStatement,
+  Block,
+  ReturnStatement,
+  CallExpression
 } from "typescript";
 import Log from "./logger";
 import Util from "./utility";
@@ -33,9 +39,11 @@ interface MetaValues {
 }
 
 export default class CrystalRenderer {
-  private generated: string[] = [];
-  private flags: string[] = [];
-  private meta: Record<MetaKey, MetaValues[MetaKey]> = {
+  private indentation = 0;
+
+  private readonly generated: string[] = ["alias Num = Int64 | Int32 | Int16 | Int8 | Float64 | Float32 | Float16 | Float8 | UInt64 | UInt32 | UInt16 | UInt8\n"];
+  private readonly flags: string[] = [];
+  private readonly meta: Record<MetaKey, MetaValues[MetaKey]> = {
     currentArrayType: undefined,
     currentHashKeyType: undefined,
     currentHashValueType: undefined
@@ -91,9 +99,7 @@ export default class CrystalRenderer {
       }
       case SyntaxKind.VariableStatement: {
         const statement = <VariableStatement>node;
-        for (const modifier of statement.modifiers ?? [])
-          this.walkModifier(modifier);
-
+        this.walkModifiers(statement);
         this.walk(statement.declarationList);
         break;
       }
@@ -103,14 +109,84 @@ export default class CrystalRenderer {
         if (UNDECLARABLE_TYPE_NAMES.includes(alias.name.getText(this.sourceNode)))
           break;
 
-        for (const modifier of alias.modifiers ?? [])
-          this.walkModifier(modifier);
-
+        this.walkModifiers(alias);
         this.append("alias ");
         this.walk(alias.name);
         this.append(" = ");
         this.walkType(alias.type)
-        this.append(";");
+        this.newLine();
+        break;
+      }
+
+      case SyntaxKind.CallExpression: {
+        const call = <CallExpression>node;
+        this.walk(call.expression);
+        if (call.arguments.length > 0) {
+          this.append("(");
+          for (const arg of call.arguments) {
+            this.walk(arg);
+            if (this.isNotLast(arg, call.arguments))
+              this.append(", ");
+          }
+
+          this.append(")");
+        }
+        break;
+      }
+      case SyntaxKind.ReturnStatement: {
+        const statement = <ReturnStatement>node;
+        this.append("return");
+        if (statement.expression) {
+          this.append(" ");
+          this.walk(statement.expression);
+        }
+
+        break;
+      }
+      case SyntaxKind.Parameter: {
+        const param = <ParameterDeclaration>node;
+        this.walk(param.name);
+
+        if (param.type) {
+          this.append(" : ");
+          this.walkType(param.type);
+          if (param.questionToken)
+            this.append("?");
+        }
+
+        if (param.initializer) {
+          this.append(" = ");
+          this.walk(param.initializer);
+        }
+
+        break;
+      }
+      case SyntaxKind.FunctionDeclaration: {
+        // TODO: handle type parameters
+        const declaration = <FunctionDeclaration>node;
+        if (!declaration.name)
+          return this.error(declaration, "Anonymous functions not supported yet.");
+
+        this.append("def ")
+        this.walk(declaration.name);
+
+        if (declaration.parameters.length > 0) {
+          this.append("(");
+          for (const param of declaration.parameters)
+            this.walk(param);
+          this.append(")");
+        }
+
+        if (declaration.type) {
+          this.append(" : ");
+          this.walkType(declaration.type);
+        }
+
+        if (declaration.body)
+          this.walk(declaration.body);
+
+        this.newLine();
+        this.append("end");
         this.newLine();
         break;
       }
@@ -129,7 +205,7 @@ export default class CrystalRenderer {
 
           this.append(" => ");
           this.walk(value);
-          if (this.isLast(property, object.properties))
+          if (this.isNotLast(property, object.properties))
             this.append(", ");
         }
 
@@ -185,6 +261,19 @@ export default class CrystalRenderer {
         this.append((<LiteralLikeNode>node).text);
         break;
       }
+      case SyntaxKind.Block: {
+        this.pushIndentation();
+        this.newLine();
+        for (const statement of (<Block>node).statements)
+          this.walk(statement);
+
+        this.popIndentation();
+        break;
+      }
+      case SyntaxKind.ExpressionStatement: {
+        this.walk((<ExpressionStatement>node).expression);
+        break;
+      }
       case SyntaxKind.SyntaxList: {
         this.walkChildren(node);
         break;
@@ -201,20 +290,17 @@ export default class CrystalRenderer {
     }
   }
 
-  private isLast<T = unknown>(element: T, array: ArrayLike<T> & { indexOf(e: T): number; }): boolean {
-    return array.indexOf(element) !== array.length - 1
-  }
-
-  private walkModifier(modifier: ModifierLike): void {
-    switch(modifier.kind) {
-      case SyntaxKind.DeclareKeyword: {
-        break;
+  private walkModifiers(container: { modifiers?: NodeArray<ModifierLike> }) {
+    for (const modifier of container.modifiers ?? [])
+      switch(modifier.kind) {
+        case SyntaxKind.DeclareKeyword: {
+          break;
+        }
+        default: {
+          Log.error(`Unhandled modifier: ${Util.getSyntaxName(modifier.kind)}`);
+          process.exit(1);
+        }
       }
-      default: {
-        Log.error(`Unhandled modifier: ${Util.getSyntaxName(modifier.kind)}`);
-        process.exit(1);
-      }
-    }
   }
 
   private walkType(type: TypeNode): void {
@@ -228,7 +314,7 @@ export default class CrystalRenderer {
         break;
       }
       case SyntaxKind.NumberKeyword: {
-        this.error(type, `"number" keyword is not supported in Crystallizer. Please use i32, i64, f32, f64, etc. instead.`)
+        this.append("Num");
         break;
       }
       case SyntaxKind.StringKeyword: {
@@ -247,7 +333,7 @@ export default class CrystalRenderer {
           this.append("(");
           for (const typeArg of ref.typeArguments) {
             this.walkType(typeArg);
-            if (this.isLast(typeArg, ref.typeArguments))
+            if (this.isNotLast(typeArg, ref.typeArguments))
               this.append(", ");
           }
           this.append(")");
@@ -280,6 +366,10 @@ export default class CrystalRenderer {
   private walkFlag(flag: NodeFlags): void {
     if (flag == NodeFlags.Const) return; // don't worry abt constants
     this.flags.push(NodeFlags[flag]);
+  }
+
+  private isNotLast<T = unknown>(element: T, array: ArrayLike<T> & { indexOf(e: T): number; }): boolean {
+    return array.indexOf(element) !== array.length - 1
   }
 
   private getMappedType(text: string): string {
@@ -319,8 +409,17 @@ export default class CrystalRenderer {
     process.exit(1);
   }
 
+  private pushIndentation(): void {
+    this.indentation++;
+  }
+
+  private popIndentation(): void {
+    this.indentation--;
+  }
+
   private newLine(): void {
     this.append("\n");
+    this.append("    ".repeat(this.indentation));
   }
 
   private append(...strings: string[]): void {

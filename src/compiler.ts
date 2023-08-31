@@ -41,7 +41,9 @@ export default class Crystallizer {
 
     // no declarations
     if (outPath.endsWith(".d.cr")) return;
-    console.log(compiledCode);
+    const lines = compiledCode.split("\n");
+    lines.shift();
+    console.log(lines.join("\n"));
     writeFileSync(path.join(this.projectDir, outPath), compiledCode);
   }
 
