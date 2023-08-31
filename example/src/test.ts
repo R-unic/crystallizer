@@ -1,1 +1,1 @@
-let x = "abc";
+const x: string = "abc";

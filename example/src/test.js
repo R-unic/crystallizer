@@ -1,2 +1,2 @@
 "use strict";
-let x = "abc";
+const x = "abc";

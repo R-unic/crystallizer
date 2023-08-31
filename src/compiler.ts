@@ -1,5 +1,6 @@
-import { SourceFile, Node, SyntaxKind, VariableDeclaration, SyntaxList, Statement, DeclarationStatement, VariableStatement, VariableDeclarationList, Identifier, LiteralLikeNode, NodeFlags, StringLiteral } from "typescript";
+import { SourceFile, Node, SyntaxKind, VariableDeclaration, SyntaxList, Statement, DeclarationStatement, VariableStatement, VariableDeclarationList, Identifier, LiteralLikeNode, NodeFlags, StringLiteral, TypeNode, TypeReference, TypeReferenceNode, QualifiedName } from "typescript";
 import Log from "./logger";
+import TYPE_MAP from "./type-map";
 
 function prettyPrintNode(node: Node): void {
   console.log(`${SyntaxKind[node.kind]}`, node);
@@ -22,19 +23,36 @@ export default class Crystallizer {
 
   private walk(node: Node): void {
     switch(node.kind) {
-      case SyntaxKind.Identifier: {
-        const isConst = this.consumeFlag("Const");
-        const { text } = <Identifier>node;
-        this.generated.push(isConst ? text.toUpperCase() : text);
+      case SyntaxKind.QualifiedName: {
+        const { left, right } = <QualifiedName>node;
+        this.walk(left);
+        this.generated.push(".");
+        this.walk(right);
         break
+      }
+      case SyntaxKind.Identifier: {
+        const isTypeIdent = this.consumeFlag("TypeIdent");
+        const { text } = <Identifier>node;
+        if (isTypeIdent)
+          this.generated.push(this.getMappedType(text));
+        else {
+          const isConst = this.consumeFlag("Const");
+          this.generated.push(isConst ? text.toUpperCase() : text);
+        }
+        break;
       }
       case SyntaxKind.VariableDeclaration: {
         const declaration = <VariableDeclaration>node;
         this.walk(declaration.name);
 
         // TODO: handle type nodes
+        if (declaration.type) {
+          this.generated.push(" : ");
+          console.log(getSyntaxName(declaration.type.kind));
+          this.walkType(declaration.type)
+        }
         if (declaration.initializer) {
-          this.generated.push(" = ")
+          this.generated.push(" = ");
           this.walk(declaration.initializer);
         }
         break;
@@ -84,6 +102,27 @@ export default class Crystallizer {
 
       default: {
         Log.warning(`Unhandled AST syntax: ${getSyntaxName(node.kind)}`);
+        break;
+      }
+    }
+  }
+
+  private getMappedType(text: string): string {
+    return TYPE_MAP.get(text) ?? text;
+  }
+
+  private walkType(type: TypeNode): void {
+    switch(type.kind) {
+      case SyntaxKind.StringKeyword: {
+        this.generated.push("String");
+        break;
+      }
+      case SyntaxKind.BooleanKeyword: {
+        this.generated.push("Bool");
+        break;
+      }
+      case SyntaxKind.TypeKeyword: {
+        this.generated.push(this.getMappedType(type.getText(this.sourceNode)));
         break;
       }
     }
