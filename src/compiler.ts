@@ -53,9 +53,9 @@ export default class Crystallizer {
 
     for (const diagnostic of allDiagnostics)
       if (diagnostic.file) {
-        let { line, character } = getLineAndCharacterOfPosition(diagnostic.file, diagnostic.start!);
-        let message = flattenDiagnosticMessageText(diagnostic.messageText, "\n");
-        Log.error(`${diagnostic.file.fileName} (${line + 1},${character + 1}): ${message}`);
+        const { line, character } = getLineAndCharacterOfPosition(diagnostic.file, diagnostic.start!);
+        const message = flattenDiagnosticMessageText(diagnostic.messageText, "\n");
+        Log.error(`${diagnostic.file.fileName} (${line + 1}, ${character + 1}): ${message}`);
       } else
         console.log(flattenDiagnosticMessageText(diagnostic.messageText, "\n"));
 

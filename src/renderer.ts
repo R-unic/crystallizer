@@ -14,16 +14,25 @@ import {
   ArrayTypeNode,
   TypeAliasDeclaration,
   ModifierLike,
-  TypeReferenceNode
+  TypeReferenceNode,
+  getLineAndCharacterOfPosition
 } from "typescript";
 import Log from "./logger";
 import Util from "./utility";
 import TYPE_MAP from "./type-map";
 
 const UNDECLARABLE_TYPE_NAMES = ["i32", "f32", "u32", "i64", "f64", "u64"];
+type MetaKey = "currentArrayType";
+interface MetaValues {
+  currentArrayType?: string;
+}
+
 export default class CrystalRenderer {
   private generated: string[] = [];
   private flags: string[] = [];
+  private meta: Record<MetaKey, MetaValues[MetaKey]> = {
+    currentArrayType: undefined
+  }
 
   public constructor(
     private readonly sourceNode: SourceFile
@@ -109,6 +118,15 @@ export default class CrystalRenderer {
         }
 
         this.append("]");
+        if (array.elements.length === 0) {
+          if (!this.meta.currentArrayType)
+            return this.error(array, "Empty arrays must have a type annotation.");
+
+          this.append(" of ");
+          this.append(this.meta.currentArrayType);
+          this.resetMeta("currentArrayType");
+        }
+
         break;
       }
       case SyntaxKind.StringLiteral: {
@@ -162,6 +180,7 @@ export default class CrystalRenderer {
         this.append("Array(");
         this.walkType(arrayType.elementType);
         this.append(")");
+        this.meta.currentArrayType = this.getMappedType(arrayType.elementType.getText(this.sourceNode));
         break;
       }
       case SyntaxKind.NumberKeyword: {
@@ -239,8 +258,14 @@ export default class CrystalRenderer {
     return matched;
   }
 
-  private lastGenerated(): string {
-    return this.generated[this.generated.length - 1];
+  private resetMeta(key: MetaKey): void {
+    this.meta[key] = undefined;
+  }
+
+  private error(node: Node, message: string) {
+    const { line, character } = getLineAndCharacterOfPosition(this.sourceNode, node.getStart(this.sourceNode));
+    Log.error(`(${line + 1}, ${character + 1}): ${message}`);
+    process.exit(1);
   }
 
   private newLine(): void {
