@@ -1,10 +1,18 @@
-import { SourceFile, Node, SyntaxKind, VariableDeclaration, SyntaxList, Statement, DeclarationStatement, VariableStatement, VariableDeclarationList, Identifier, LiteralLikeNode, NodeFlags, StringLiteral, TypeNode, TypeReference, TypeReferenceNode, QualifiedName } from "typescript";
+import {
+  SourceFile,
+  Node, NodeFlags,
+  SyntaxKind,
+  VariableDeclaration,
+  VariableStatement,
+  VariableDeclarationList,
+  Identifier,
+  QualifiedName,
+  LiteralLikeNode,
+  StringLiteral,
+  TypeNode
+} from "typescript";
 import Log from "./logger";
 import TYPE_MAP from "./type-map";
-
-function prettyPrintNode(node: Node): void {
-  console.log(`${SyntaxKind[node.kind]}`, node);
-}
 
 export default class Crystallizer {
   private generated: string[] = [];
