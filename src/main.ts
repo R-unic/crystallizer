@@ -4,6 +4,7 @@ import Crystallizer from "./compiler";
 
 // add config and such
 // and remove file option
+// cli parsing
 const fileName = process.argv[2];
 const sourceFile = ts.createSourceFile(
   fileName,
@@ -12,4 +13,4 @@ const sourceFile = ts.createSourceFile(
 );
 
 const crystallizer = new Crystallizer(sourceFile);
-crystallizer.compile()
+crystallizer.compile();
