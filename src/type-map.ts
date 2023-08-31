@@ -1,6 +1,8 @@
 export default new Map<string, string>([
-  ["string", "String"],
-  ["float", "Float64"],
-  ["int", "Int64"],
-  ["uint", "UInt64"]
+  ["f64", "Float64"],
+  ["i64", "Int64"],
+  ["u64", "UInt64"],
+  ["f32", "Float32"],
+  ["i32", "Int32"],
+  ["u32", "UInt32"]
 ])

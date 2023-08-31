@@ -35,11 +35,12 @@ export default class Crystallizer {
   private compileFile(sourceFile: SourceFile): void {
     const crystal = new CrystalRenderer(sourceFile);
     const compiledCode = crystal.render();
-    console.log(this.sourceDirName, this.outDirName, sourceFile.fileName)
     const outPath = sourceFile.fileName
       .replace(this.sourceDirName, this.outDirName)
       .replace(".ts", ".cr");
 
+    // no declarations
+    if (outPath.endsWith(".d.cr")) return;
     console.log(compiledCode);
     writeFileSync(path.join(this.projectDir, outPath), compiledCode);
   }
