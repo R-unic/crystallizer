@@ -24,7 +24,9 @@ import {
   ExpressionStatement,
   Block,
   ReturnStatement,
-  CallExpression
+  CallExpression,
+  BinaryExpression,
+  PrefixUnaryExpression
 } from "typescript";
 import Log from "./logger";
 import Util from "./utility";
@@ -268,6 +270,19 @@ export default class CrystalRenderer {
           this.walk(statement);
 
         this.popIndentation();
+        break;
+      }
+      case SyntaxKind.BinaryExpression: {
+        const binary = <BinaryExpression>node;
+        this.walk(binary.left);
+        this.append(` ${Util.syntaxKindToText(binary.operatorToken.kind)} `)
+        this.walk(binary.right);
+        break;
+      }
+      case SyntaxKind.PrefixUnaryExpression: {
+        const unary = <PrefixUnaryExpression>node;
+        this.walk(unary.operand);
+        this.append(` ${Util.syntaxKindToText(unary.operator)} `)
         break;
       }
       case SyntaxKind.ExpressionStatement: {
