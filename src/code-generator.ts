@@ -43,6 +43,7 @@ import {
   ConstructorDeclaration,
   NewExpression,
   ParenthesizedExpression,
+  ForOfStatement,
 } from "typescript";
 import path from "path";
 
@@ -467,6 +468,27 @@ export default class CodeGenerator extends StringBuilder {
         break;
       }
 
+      case SyntaxKind.ForOfStatement: {
+        const forOfStatement = <ForOfStatement>node;
+        this.walk(forOfStatement.expression);
+        this.append(".for_each do |");
+
+        const declarationList = <VariableDeclarationList>forOfStatement.initializer;
+        this.walk(declarationList.declarations[0].name);
+        this.append("|");
+
+        if (forOfStatement.statement.kind !== SyntaxKind.Block) {
+          this.pushIndentation();
+          this.newLine();
+          this.popIndentation();
+        }
+
+        this.walk(forOfStatement.statement);
+        this.newLine();
+        this.append("end");
+        this.newLine();
+        break;
+      }
       case SyntaxKind.ForStatement: {
         const forStatement = <ForStatement>node;
         if (forStatement.initializer)
@@ -606,6 +628,9 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.ArrayLiteralExpression: {
         const array = <ArrayLiteralExpression>node;
+        if (!this.meta.currentArrayType)
+          return this.error(array, "All arrays must have a type annotation.", "UnannotatedArray");
+
         const elementType = this.getMappedType(<string>this.meta.currentArrayType);
         this.resetMeta("currentArrayType");
 

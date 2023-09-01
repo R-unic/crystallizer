@@ -7,6 +7,12 @@ class TsArray(T)
     @cache[index]
   end
 
+  def for_each(&) : Nil
+    @cache.each do |item|
+      yield item
+    end
+  end
+
   def length : UInt32
     @cache.size.to_u32
   end
