@@ -42,32 +42,37 @@ import {
   ConstructorDeclaration,
   NewExpression
 } from "typescript";
-import Log from "./logger";
-import Util from "./utility";
-import TYPE_MAP from "./type-map";
 import path from "path";
+
+import Util from "./utility";
+import Log from "./logger";
+import TYPE_MAP from "./type-map";
 
 const UNDECLARABLE_TYPE_NAMES = ["i32", "f32", "u32", "i64", "f64", "u64"];
 const UNCASTABLE_TYPES = [SyntaxKind.UnknownKeyword, SyntaxKind.AnyKeyword];
 const CLASS_MODIFIERS = [SyntaxKind.PublicKeyword, SyntaxKind.PrivateKeyword, SyntaxKind.ProtectedKeyword, SyntaxKind.ReadonlyKeyword];
 
-type MetaKey = "currentArrayType" | "currentHashKeyType" | "currentHashValueType";
+type MetaKey = "currentArrayType" | "currentHashKeyType" | "currentHashValueType" | "publicClassProperties";
 interface MetaValues {
   currentArrayType?: string;
   currentHashKeyType?: string;
   currentHashValueType?: string;
+  publicClassProperties: ParameterDeclaration[];
 }
+
+const DEFAULT_META: Record<MetaKey, MetaValues[MetaKey]> = {
+  currentArrayType: undefined,
+  currentHashKeyType: undefined,
+  currentHashValueType: undefined,
+  publicClassProperties: []
+};
 
 export default class CodeGenerator {
   private indentation = 0;
 
   private readonly generated: string[] = ["alias Num = Int64 | Int32 | Int16 | Int8 | Float64 | Float32 | UInt64 | UInt32 | UInt16 | UInt8\n"];
   private readonly flags: string[] = [];
-  private readonly meta: Record<MetaKey, MetaValues[MetaKey]> = {
-    currentArrayType: undefined,
-    currentHashKeyType: undefined,
-    currentHashValueType: undefined
-  }
+  private readonly meta = DEFAULT_META;
 
   public constructor(
     private readonly sourceNode: SourceFile
@@ -334,6 +339,23 @@ export default class CodeGenerator {
             this.newLine();
         }
 
+        const publicProperties = <ParameterDeclaration[]>this.meta.publicClassProperties;
+        if (publicProperties.length > 0)
+          this.newLine();
+
+        for (const publicProperty of publicProperties) {
+          this.append("property ");
+          this.walk(publicProperty.name);
+          if (publicProperty.type) {
+            this.append(" : ");
+            this.walkType(publicProperty.type);
+          }
+
+          if (Util.isNotLast(publicProperty, publicProperties))
+            this.newLine();
+        }
+
+        this.meta.publicClassProperties = [];
         this.popIndentation();
         this.newLine();
         this.append("end");
@@ -618,9 +640,16 @@ export default class CodeGenerator {
     if (parameters.length > 0) {
       this.append("(");
       for (const param of parameters) {
-        const modifierTypes = param.modifiers?.map(mod => mod.kind);
-        if (modifierTypes?.includes(SyntaxKind.PublicKeyword) || modifierTypes?.includes(SyntaxKind.PrivateKeyword) || modifierTypes?.includes(SyntaxKind.ProtectedKeyword))
-          this.append("@");
+        const modifierTypes = param.modifiers?.map(mod => mod.kind) ?? [];
+        const isPublic = modifierTypes.includes(SyntaxKind.PublicKeyword);
+        const isStatic = modifierTypes.includes(SyntaxKind.StaticKeyword);
+        if (isPublic)
+          (<ParameterDeclaration[]>this.meta.publicClassProperties).push(param);
+        if (CLASS_MODIFIERS.includes(modifierTypes[0]))
+          if (isStatic)
+            this.append("@@");
+          else
+            this.append("@");
 
         this.walk(param);
         if (Util.isNotLast(param, parameters))
