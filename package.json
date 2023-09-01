@@ -5,6 +5,7 @@
   "main": "dist/main.js",
   "bin": "dist/main.js",
   "scripts": {
+    "start": "node dist/main.js",
     "build-binary": "npx pkg . -t node18-linux,node18-linux,node18-win && mkdir -p bin && mv crystallizer-linux bin/crystallizer && mv crystallizer-win.exe bin/crystallizer.exe"
   },
   "repository": {
