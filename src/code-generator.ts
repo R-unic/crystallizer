@@ -42,6 +42,7 @@ import {
   TypeParameterDeclaration,
   ConstructorDeclaration,
   NewExpression,
+  ParenthesizedExpression,
 } from "typescript";
 import path from "path";
 
@@ -51,6 +52,7 @@ import StringBuilder from "./string-builder";
 
 import TYPE_MAP from "./type-map";
 import BINARY_OPERATOR_MAP from "./binary-operator-map";
+import { mkdirSync, rmSync, rmdirSync } from "fs";
 const UNDECLARABLE_TYPE_NAMES = ["i32", "f32", "u32", "i64", "f64", "u64"];
 const UNCASTABLE_TYPES = [SyntaxKind.UnknownKeyword, SyntaxKind.AnyKeyword];
 const CLASS_MODIFIERS = [SyntaxKind.PublicKeyword, SyntaxKind.PrivateKeyword, SyntaxKind.ProtectedKeyword, SyntaxKind.ReadonlyKeyword];
@@ -75,16 +77,31 @@ export default class CodeGenerator extends StringBuilder {
   private readonly meta = DEFAULT_META;
 
   public constructor(
-    private readonly sourceNode: SourceFile
-  ) {
-    super();
-    this.append("alias Num = Int64 | Int32 | Int16 | Int8 | Float64 | Float32 | UInt64 | UInt32 | UInt16 | UInt8\n");
-    // eventually i gotta put this in a separate file, it's like a RuntimeLib
-  }
+    private readonly sourceNode: SourceFile,
+    private readonly projectDir: string
+  ) { super(); }
 
   public generate(): string {
+    this.appendRuntimeLibImport();
     this.walkChildren(this.sourceNode);
     return this.generated.trim();
+  }
+
+  private appendRuntimeLibImport(): void {
+    const projectRuntimeLibPath = path.join(this.projectDir, "runtime_lib");
+    if (Util.isDirectory(projectRuntimeLibPath))
+      rmSync(projectRuntimeLibPath, {
+        force: true,
+        recursive: true
+      });
+    if (!Util.isDirectory(projectRuntimeLibPath)) {
+      mkdirSync(projectRuntimeLibPath);
+      Util.copyDirectory(path.join(__dirname, "../runtime_lib"), projectRuntimeLibPath);
+    }
+
+    const relativeProjectPath = path.relative(this.sourceNode.fileName, this.projectDir);
+    const fixedProjectPath = relativeProjectPath.split(path.sep).slice(0, -3).join(path.sep)
+    this.append(`require "${path.join(fixedProjectPath, "runtime_lib/*")}"\n\n`);
   }
 
   private walk(node: Node): void {
@@ -159,6 +176,13 @@ export default class CodeGenerator extends StringBuilder {
           }
           this.append(")");
         }
+        break;
+      }
+      case SyntaxKind.ParenthesizedExpression: {
+        const parenthesized = <ParenthesizedExpression>node;
+        this.append("(");
+        this.walk(parenthesized.expression);
+        this.append(")");
         break;
       }
       case SyntaxKind.BinaryExpression: {
@@ -582,23 +606,22 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.ArrayLiteralExpression: {
         const array = <ArrayLiteralExpression>node;
+        const elementType = this.getMappedType(<string>this.meta.currentArrayType);
+        this.resetMeta("currentArrayType");
+
+        this.append("TsArray(");
+        this.append(elementType);
+        this.append(").new(");
         this.append("[");
         for (const element of array.elements) {
           this.walk(element);
           if (array.elements.indexOf(element) !== array.elements.length - 1)
-            this.append(", ");
+          this.append(", ");
         }
 
-        this.append("]");
-        if (array.elements.length === 0) {
-          if (!this.meta.currentArrayType)
-            return this.error(array, "Empty arrays must have a type annotation.", "UnannotatedEmptyArray");
-
-          this.append(" of ");
-          this.append(<string>this.meta.currentArrayType);
-          this.resetMeta("currentArrayType");
-        }
-
+        this.append("] of ");
+        this.append(elementType);
+        this.append(")");
         break;
       }
       case SyntaxKind.StringLiteral: {
@@ -773,7 +796,7 @@ export default class CodeGenerator extends StringBuilder {
     switch(type.kind) {
       case SyntaxKind.ArrayType: {
         const arrayType = <ArrayTypeNode>type;
-        this.append("Array(");
+        this.append("TsArray(");
         this.walkType(arrayType.elementType);
         this.append(")");
         this.meta.currentArrayType = this.getMappedType(arrayType.elementType.getText(this.sourceNode));

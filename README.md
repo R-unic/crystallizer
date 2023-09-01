@@ -10,7 +10,8 @@ A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with a
 
 # Todo
 
-- cli
+- cli:
+  - watch mode
 - codegen:
   - imports/exports
   - async/await (idk how tf ima pull this off, somehow gotta make a promise class with fibers)

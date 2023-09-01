@@ -23,7 +23,6 @@ export default class Crystallizer {
 
   public compile(): void {
     const fileNames = this.sourceFiles.map(source => path.join(this.projectDir, source.fileName));
-
     const host = createCompilerHost(this.compilerOptions);
     const program = createProgram(fileNames, this.compilerOptions, host);
     this.handleDiagnostics(program);
@@ -33,7 +32,7 @@ export default class Crystallizer {
   }
 
   private compileFile(sourceFile: SourceFile): void {
-    const codeGen = new CodeGenerator(sourceFile);
+    const codeGen = new CodeGenerator(sourceFile, this.projectDir);
     const compiledCode = codeGen.generate();
     const outPath = sourceFile.fileName
       .replace(this.sourceDirName, this.outDirName)
@@ -41,9 +40,7 @@ export default class Crystallizer {
 
     // no declarations
     if (outPath.endsWith(".d.cr")) return;
-    const lines = compiledCode.split("\n");
-    lines.shift();
-    console.log(lines.join("\n"));
+    console.log(compiledCode);
     writeFileSync(path.join(this.projectDir, outPath), compiledCode);
   }
 

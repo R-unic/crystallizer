@@ -5,10 +5,12 @@ export default new Map<string, string>([
   ["f32", "Float32"],
   ["i32", "Int32"],
   ["u32", "UInt32"],
+  ["number", "Num"],
   ["string", "String"],
   ["void", "Nil"],
   ["undefined", "Nil"],
   ["null", "Nil"],
   ["boolean", "Bool"],
+  ["Array", "TsArray"],
   ["Record", "Hash"]
 ])
