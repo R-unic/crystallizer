@@ -28,6 +28,7 @@ import {
   PrefixUnaryExpression,
   IfStatement,
   PropertyAccessExpression,
+  ElementAccessExpression,
   Expression,
   WhileStatement,
   ForStatement,
@@ -40,15 +41,16 @@ import {
   MethodDeclaration,
   TypeParameterDeclaration,
   ConstructorDeclaration,
-  NewExpression
+  NewExpression,
 } from "typescript";
 import path from "path";
 
 import Util from "./utility";
 import Log from "./logger";
-import TYPE_MAP from "./type-map";
-import StringBuilder from "./utility/string-builder";
+import StringBuilder from "./string-builder";
 
+import TYPE_MAP from "./type-map";
+import BINARY_OPERATOR_MAP from "./binary-operator-map";
 const UNDECLARABLE_TYPE_NAMES = ["i32", "f32", "u32", "i64", "f64", "u64"];
 const UNCASTABLE_TYPES = [SyntaxKind.UnknownKeyword, SyntaxKind.AnyKeyword];
 const CLASS_MODIFIERS = [SyntaxKind.PublicKeyword, SyntaxKind.PrivateKeyword, SyntaxKind.ProtectedKeyword, SyntaxKind.ReadonlyKeyword];
@@ -162,7 +164,9 @@ export default class CodeGenerator extends StringBuilder {
       case SyntaxKind.BinaryExpression: {
         const binary = <BinaryExpression>node;
         this.walk(binary.left);
-        this.append(` ${binary.operatorToken.getText(this.sourceNode)} `);
+
+        const operatorText = binary.operatorToken.getText(this.sourceNode);
+        this.append(` ${this.getMappedBinaryOperator(operatorText)} `);
         this.walk(binary.right);
         break;
       }
@@ -188,16 +192,35 @@ export default class CodeGenerator extends StringBuilder {
       case SyntaxKind.PropertyAccessExpression: {
         const access = <PropertyAccessExpression>node;
         const objectText = access.expression.getText(this.sourceNode);
-        const propertyName = access.name.getText(this.sourceNode);
+        const propertyNameText = access.name.getText(this.sourceNode);
         if (objectText === "console")
-          if (propertyName === "log") {
-            this.append("puts")
+          if (propertyNameText === "log") {
+            this.append("puts");
             break;
           }
 
         this.walk(access.expression);
         this.append(access.expression.kind === SyntaxKind.ThisKeyword ? "" : ".");
         this.walk(access.name);
+        break;
+      }
+      case SyntaxKind.ElementAccessExpression: {
+        const access = <ElementAccessExpression>node;
+        if (access.expression.kind === SyntaxKind.ThisKeyword)
+          return this.error(access.expression, `Cannot index 'this'. Use 'this.memberName' instead.`, "AttemptToIndexThis");
+
+        const objectText = access.expression.getText(this.sourceNode);
+        const indexText = access.argumentExpression.getText(this.sourceNode);
+        if (objectText === "console")
+          if (indexText === '"log"') {
+            this.append("puts");
+            break;
+          }
+
+        this.walk(access.expression);
+        this.append("[");
+        this.walk(access.argumentExpression);
+        this.append("]");
         break;
       }
       case SyntaxKind.TypeAssertionExpression:
@@ -283,6 +306,7 @@ export default class CodeGenerator extends StringBuilder {
           declaration.body
         );
 
+        this.newLine();
         break;
       }
       case SyntaxKind.Constructor: {
@@ -437,10 +461,8 @@ export default class CodeGenerator extends StringBuilder {
         }
 
         this.walk(forStatement.statement);
-        if (forStatement.incrementor) {
-          this.newLine();
+        if (forStatement.incrementor)
           this.walk(forStatement.incrementor);
-        }
 
         if (bodyIsBlock)
           this.popIndentation();
@@ -839,6 +861,10 @@ export default class CodeGenerator extends StringBuilder {
     }
 
     return mappedType;
+  }
+
+  private getMappedBinaryOperator(text: string): string {
+    return BINARY_OPERATOR_MAP.get(text) ?? text;
   }
 
   private consumeFlag(flag: string): boolean {

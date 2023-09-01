@@ -13,3 +13,5 @@ A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with a
 - cli
 - codegen:
   - imports/exports
+  - async/await (idk how tf ima pull this off, somehow gotta make a promise class with fibers)
+  - instanceof (value.class < TypeToCheck)
