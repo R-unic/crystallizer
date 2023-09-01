@@ -198,7 +198,7 @@ export default class CodeGenerator {
         // TODO: handle type parameters
         const declaration = <FunctionDeclaration>node;
         if (!declaration.name)
-          return this.error(declaration, "Anonymous functions not supported yet.");
+          return this.error(declaration, "Anonymous functions not supported yet.", "UnsupportedAnonymousFunctions");
 
         this.append("def ")
         this.walk(declaration.name);
@@ -293,7 +293,7 @@ export default class CodeGenerator {
         this.append("}");
         if (object.properties.length === 0) {
           if (!this.meta.currentHashKeyType || !this.meta.currentHashValueType)
-            return this.error(object, "Empty objects must have a Record type annotation.");
+            return this.error(object, "Empty objects must have a Record type annotation.", "UnannotatedEmptyObject");
 
           this.append(" of ");
           this.append(this.meta.currentHashKeyType);
@@ -302,6 +302,7 @@ export default class CodeGenerator {
           this.resetMeta("currentHashKeyType");
           this.resetMeta("currentHashValueType");
         }
+
         break;
       }
       case SyntaxKind.ArrayLiteralExpression: {
@@ -316,7 +317,7 @@ export default class CodeGenerator {
         this.append("]");
         if (array.elements.length === 0) {
           if (!this.meta.currentArrayType)
-            return this.error(array, "Empty arrays must have a type annotation.");
+            return this.error(array, "Empty arrays must have a type annotation.", "UnannotatedEmptyArray");
 
           this.append(" of ");
           this.append(this.meta.currentArrayType);
@@ -360,7 +361,7 @@ export default class CodeGenerator {
       }
 
       default: {
-        Log.error(`Unhandled AST syntax: ${Util.getSyntaxName(node.kind)}`);
+        console.log(`Unhandled AST syntax: ${Util.getSyntaxName(node.kind)}`);
         process.exit(1);
       }
     }
@@ -373,7 +374,7 @@ export default class CodeGenerator {
           break;
         }
         default: {
-          Log.error(`Unhandled modifier: ${Util.getSyntaxName(modifier.kind)}`);
+          console.log(`Unhandled modifier: ${Util.getSyntaxName(modifier.kind)}`);
           process.exit(1);
         }
       }
@@ -428,7 +429,7 @@ export default class CodeGenerator {
         break;
       }
       default: {
-        Log.error(`Unhandled type node: ${Util.getSyntaxName(type.kind)}`);
+        console.log(`Unhandled type node: ${Util.getSyntaxName(type.kind)}`);
         process.exit(1);
       }
     }
@@ -479,9 +480,15 @@ export default class CodeGenerator {
     this.meta[key] = undefined;
   }
 
-  private error(node: Node, message: string) {
+  private error(node: Node, message: string, errorType: string) {
     const { line, character } = getLineAndCharacterOfPosition(this.sourceNode, node.getStart(this.sourceNode));
-    Log.error(`(${line + 1}, ${character + 1}): ${message}`);
+    Log.error(
+      this.sourceNode,
+      message,
+      line, character,
+      `Crystallizer.${errorType}`,
+      node.getText(this.sourceNode)
+    );
     process.exit(1);
   }
 

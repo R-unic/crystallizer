@@ -1,5 +1,4 @@
 import { SyntaxKind, Node } from "typescript";
-import Log from "./logger";
 
 export default class Util {
   public static syntaxKindToText(kind: SyntaxKind) {
@@ -8,7 +7,7 @@ export default class Util {
         return "+";
 
       default: {
-        Log.error(`Unhandled syntax kind to text conversion: ${Util.getSyntaxName(kind)}`);
+        console.log(`Unhandled syntax kind to text conversion: ${Util.getSyntaxName(kind)}`);
         process.exit(1);
       }
     }

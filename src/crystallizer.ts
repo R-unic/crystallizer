@@ -48,8 +48,8 @@ export default class Crystallizer {
   }
 
   private handleDiagnostics(program: Program): void {
-    // TODO: make this not dog shit lol
-    // TODO: add *colors* :D
+
+    // const x: string = 123
     const emitResult = program.emit();
     const allDiagnostics = getPreEmitDiagnostics(program).concat(emitResult.diagnostics);
 
@@ -57,7 +57,13 @@ export default class Crystallizer {
       if (diagnostic.file) {
         const { line, character } = getLineAndCharacterOfPosition(diagnostic.file, diagnostic.start!);
         const message = flattenDiagnosticMessageText(diagnostic.messageText, "\n");
-        Log.error(`${diagnostic.file.fileName} (${line + 1}, ${character + 1}): ${message}`);
+        Log.error(
+          diagnostic.file,
+          message,
+          line, character,
+          `TS${diagnostic.code}`,
+          diagnostic.source
+        );
       } else
         console.log(flattenDiagnosticMessageText(diagnostic.messageText, "\n"));
 
