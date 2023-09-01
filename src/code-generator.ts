@@ -27,7 +27,8 @@ import {
   BinaryExpression,
   PrefixUnaryExpression,
   IfStatement,
-  PropertyAccessExpression
+  PropertyAccessExpression,
+  AsExpression
 } from "typescript";
 import Log from "./logger";
 import Util from "./utility";
@@ -124,14 +125,14 @@ export default class CodeGenerator {
       case SyntaxKind.BinaryExpression: {
         const binary = <BinaryExpression>node;
         this.walk(binary.left);
-        this.append(` ${binary.operatorToken.getText(this.sourceNode)} `)
+        this.append(` ${binary.operatorToken.getText(this.sourceNode)} `);
         this.walk(binary.right);
         break;
       }
       case SyntaxKind.PrefixUnaryExpression: {
         const unary = <PrefixUnaryExpression>node;
         this.walk(unary.operand);
-        this.append(` ${Util.syntaxKindToText(unary.operator)} `)
+        this.append(` ${Util.syntaxKindToText(unary.operator)} `);
         break;
       }
       case SyntaxKind.PropertyAccessExpression: {
@@ -145,8 +146,41 @@ export default class CodeGenerator {
           }
 
         this.walk(access.expression);
-        this.append(".")
+        this.append(".");
         this.walk(access.name);
+        break;
+      }
+      case SyntaxKind.AsExpression: {
+        const cast = <AsExpression>node;
+        this.walk(cast.expression);
+        this.append(".");
+
+        const to = "to_";
+        switch(cast.type.kind) {
+          case SyntaxKind.NumberKeyword: {
+            this.append(to + "f64");
+            break;
+          }
+          case SyntaxKind.StringKeyword: {
+            this.append(to + "s");
+            break;
+          }
+          case SyntaxKind.TypeReference: {
+            const typeText = cast.type.getText(this.sourceNode);
+            if (UNDECLARABLE_TYPE_NAMES.includes(typeText)) {
+              this.append(to + typeText);
+              break;
+            }
+          }
+
+          default: {
+            this.append("as(");
+            this.walkType(cast.type);
+            this.append(")");
+            break;
+          }
+        }
+
         break;
       }
       case SyntaxKind.CallExpression: {
