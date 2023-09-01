@@ -46,7 +46,8 @@ import {
   ForOfStatement,
   AwaitExpression,
 } from "typescript";
-import { copyFileSync, rmSync } from "fs";
+import { rmSync } from "fs";
+import { platform } from "os";
 import { exec } from "child_process";
 import path from "path";
 
@@ -56,11 +57,11 @@ import StringBuilder from "./string-builder";
 
 import TYPE_MAP from "./type-map";
 import BINARY_OPERATOR_MAP from "./binary-operator-map";
-import { platform } from "os";
 const UNDECLARABLE_TYPE_NAMES = ["i32", "f32", "u32", "i64", "f64", "u64"];
 const UNCASTABLE_TYPES = [SyntaxKind.UnknownKeyword, SyntaxKind.AnyKeyword];
 const CLASS_MODIFIERS = [SyntaxKind.PublicKeyword, SyntaxKind.PrivateKeyword, SyntaxKind.ProtectedKeyword, SyntaxKind.ReadonlyKeyword];
-const SNAKE_CASE_GLOBALS = ["setTimeout", "setInterval"]
+const SNAKE_CASE_GLOBALS = ["setTimeout", "setInterval"];
+const TYPE_HELPER_FILENAME = "crystal.d.ts";
 
 interface MetaValues extends Record<string, unknown> {
   currentArrayType?: string;
@@ -99,7 +100,7 @@ export default class CodeGenerator extends StringBuilder {
 
   private handleRuntimeLib(): void {
     const projectRuntimeLibPath = path.join(this.outDir, "runtime_lib");
-    if (Util.isDirectory(projectRuntimeLibPath)) {
+    if (Util.Files.isDirectory(projectRuntimeLibPath)) {
       const rf = {
         force: true,
         recursive: true
@@ -110,11 +111,12 @@ export default class CodeGenerator extends StringBuilder {
       rmSync(path.join(projectRuntimeLibPath, "shard.lock"), rf);
     }
 
-    Util.copyDirectory(path.join(__dirname, "../runtime_lib"), projectRuntimeLibPath);
+    Util.Files.copyDirectory(path.join(__dirname, "../runtime_lib"), projectRuntimeLibPath);
 
     const runtimeLibShard = path.join(projectRuntimeLibPath, "shard.yml");
-    copyFileSync(runtimeLibShard, path.join(this.outDir, "shard.yml"));
-    rmSync(runtimeLibShard);
+    Util.Files.moveFile(runtimeLibShard, path.join(this.outDir, "shard.yml"));
+    const crystalTypeHelpers = path.join(projectRuntimeLibPath, TYPE_HELPER_FILENAME)
+    Util.Files.moveFile(crystalTypeHelpers, path.join(this.outDir, TYPE_HELPER_FILENAME));
 
     const isWindows = platform() === "win32";
     exec((isWindows ? "where.exe" : "which") + " shards", (error, stdout, stderr) => {

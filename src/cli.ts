@@ -36,7 +36,7 @@ export default class CLI {
     const sourceFiles: ts.SourceFile[] = [];
     for (const fileName of fileNames) {
       const filePath = path.join(this.compilerOptions.rootDir!, fileName);
-      if (Util.isDirectory(filePath)) {
+      if (Util.Files.isDirectory(filePath)) {
         const childFileNames = readdirSync(filePath);
         sourceFiles.push(...childFileNames.map(fileName => this.createSourceFile(path.join(filePath, fileName))));
       } else
