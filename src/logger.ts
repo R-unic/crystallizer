@@ -1,4 +1,5 @@
 import ts from "typescript";
+import "colors.ts";
 
 export default class Log {
   public static error(
@@ -9,19 +10,12 @@ export default class Log {
     code: string,
     source?: string
   ): void {
-
-    // TODO: add *colors* :D
-    /*
-    cyan     yellow        red   hidden
-    fileName:line:column - error TS1234: Type 'number' is not assignable to type 'string'.
-    */
-    console.log(`\n${sourceFile.fileName}:${line + 1}:${character + 1} - error ${code}: ${message}\n`);
-    // foreground white background black for line & lineDigitLength space
+    console.log(`\n${sourceFile.fileName.cyan}:${(line + 1).toString().yellow}:${(character + 1).toString().yellow} - ${"error".red} ${(code + ":").gray(7)} ${message}\n`);
     if (source) {
-      const lineDigitLength = (line + 1).toString().length;
+      const lineNumberText = (line + 1).toString();
       const lineSource = sourceFile.getText(sourceFile).split("\n")[line];
-      console.log(`${line + 1}\t${lineSource}`);
-      console.log(`${" ".repeat(lineDigitLength)}\t${" ".repeat(character)}~`) // red
+      console.log(`${(lineNumberText).gray(3).bg_white}\t${lineSource}`);
+      console.log(`${" ".repeat(lineNumberText.length).bg_white}\t${" ".repeat(character)}` + "~".red) // red
     }
   }
 
