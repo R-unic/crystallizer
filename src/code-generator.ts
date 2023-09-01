@@ -28,7 +28,9 @@ import {
   PrefixUnaryExpression,
   IfStatement,
   PropertyAccessExpression,
-  AsExpression
+  AsExpression,
+  TypeAssertion,
+  Expression
 } from "typescript";
 import Log from "./logger";
 import Util from "./utility";
@@ -150,37 +152,12 @@ export default class CodeGenerator {
         this.walk(access.name);
         break;
       }
+
+      case SyntaxKind.TypeAssertionExpression:
       case SyntaxKind.AsExpression: {
-        const cast = <AsExpression>node;
+        const cast = <Node & { expression: Expression; type: TypeNode }>node;
         this.walk(cast.expression);
-        this.append(".");
-
-        const to = "to_";
-        switch(cast.type.kind) {
-          case SyntaxKind.NumberKeyword: {
-            this.append(to + "f64");
-            break;
-          }
-          case SyntaxKind.StringKeyword: {
-            this.append(to + "s");
-            break;
-          }
-          case SyntaxKind.TypeReference: {
-            const typeText = cast.type.getText(this.sourceNode);
-            if (UNDECLARABLE_TYPE_NAMES.includes(typeText)) {
-              this.append(to + typeText);
-              break;
-            }
-          }
-
-          default: {
-            this.append("as(");
-            this.walkType(cast.type);
-            this.append(")");
-            break;
-          }
-        }
-
+        this.appendTypeCastMethod(cast.type);
         break;
       }
       case SyntaxKind.CallExpression: {
@@ -397,6 +374,36 @@ export default class CodeGenerator {
       default: {
         console.log(`Unhandled AST syntax: ${Util.getSyntaxName(node.kind)}`);
         process.exit(1);
+      }
+    }
+  }
+
+  private appendTypeCastMethod(type: TypeNode) {
+    this.append(".");
+
+    const to = "to_";
+    switch (type.kind) {
+      case SyntaxKind.NumberKeyword: {
+        this.append(to + "f64");
+        break;
+      }
+      case SyntaxKind.StringKeyword: {
+        this.append(to + "s");
+        break;
+      }
+      case SyntaxKind.TypeReference: {
+        const typeText = type.getText(this.sourceNode);
+        if (UNDECLARABLE_TYPE_NAMES.includes(typeText)) {
+          this.append(to + typeText);
+          break;
+        }
+      }
+
+      default: {
+        this.append("as(");
+        this.walkType(type);
+        this.append(")");
+        break;
       }
     }
   }
