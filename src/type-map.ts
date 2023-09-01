@@ -12,5 +12,6 @@ export default new Map<string, string>([
   ["null", "Nil"],
   ["boolean", "Bool"],
   ["Array", "TsArray"],
-  ["Record", "Hash"]
+  ["Record", "Hash"],
+  ["Promise", "MiniFuture"]
 ])

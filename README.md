@@ -16,7 +16,7 @@ A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with a
   - watch mode
 - codegen:
   - imports/exports
-  - async/await
+  - disallow Promise.then, Promise.catch, Promise.finally, etc.
   - instanceof (value.class < TypeToCheck)
   - blocks & higher order functions
 - fix:

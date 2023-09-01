@@ -44,8 +44,9 @@ import {
   NewExpression,
   ParenthesizedExpression,
   ForOfStatement,
+  AwaitExpression,
 } from "typescript";
-import { copyFileSync, mkdirSync, readdirSync, rmSync } from "fs";
+import { copyFileSync, rmSync } from "fs";
 import { exec } from "child_process";
 import path from "path";
 
@@ -66,8 +67,9 @@ interface MetaValues extends Record<string, unknown> {
   currentHashKeyType?: string;
   currentHashValueType?: string;
   publicClassProperties: ParameterDeclaration[];
-  functionIdentifiers: string[];
-  walkingCallArguments: boolean;
+  allFunctionIdentifiers: string[];
+  asyncFunctionIdentifiers: string[];
+  inGlobalScope: boolean;
 }
 
 const DEFAULT_META: MetaValues = {
@@ -75,8 +77,9 @@ const DEFAULT_META: MetaValues = {
   currentHashKeyType: undefined,
   currentHashValueType: undefined,
   publicClassProperties: [],
-  functionIdentifiers: [], // TODO: make this a Crystallizer property instead to track function identifiers across all files
-  walkingCallArguments: false
+  allFunctionIdentifiers: [], // TODO: make this (and the below field) a property of the Crystallizer class instead to track function identifiers across all files
+  asyncFunctionIdentifiers: [],
+  inGlobalScope: true
 };
 
 export default class CodeGenerator extends StringBuilder {
@@ -281,12 +284,19 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.CallExpression: {
         const call = <CallExpression>node;
+
         let callArguments: NodeArray<Expression> | Expression[] = call.arguments;
-        if (call.expression.kind === SyntaxKind.Identifier && SNAKE_CASE_GLOBALS.includes((<Identifier>call.expression).text)) {
+        if (call.expression.kind === SyntaxKind.Identifier) {
           const functionName = (<Identifier>call.expression).text;
-          this.append(Util.toSnakeCase(functionName));
-          if (functionName === "setTimeout" || functionName === "setInterval")
-            callArguments = callArguments.map((_, index, array) => array[array.length - 1 - index]);
+          if (this.meta.inGlobalScope && this.meta.asyncFunctionIdentifiers.includes(functionName))
+            this.append("await ");
+
+          if (SNAKE_CASE_GLOBALS.includes((<Identifier>call.expression).text)) {
+            this.append(Util.toSnakeCase(functionName));
+            if (functionName === "setTimeout" || functionName === "setInterval")
+              callArguments = callArguments.map((_, index, array) => array[array.length - 1 - index]);
+          } else
+            this.walk(call.expression);
         } else
           this.walk(call.expression);
 
@@ -294,7 +304,7 @@ export default class CodeGenerator extends StringBuilder {
         if (callArguments.length > 0) {
           this.append("(");
           for (const arg of callArguments)
-            if (arg.kind === SyntaxKind.Identifier && this.meta.functionIdentifiers.includes((<Identifier>arg).text))
+            if (arg.kind === SyntaxKind.Identifier && this.meta.allFunctionIdentifiers.includes((<Identifier>arg).text))
               block = <Identifier>arg;
             else {
               this.walk(arg);
@@ -333,6 +343,12 @@ export default class CodeGenerator extends StringBuilder {
 
         break;
       }
+      case SyntaxKind.AwaitExpression: {
+        const awaitExpression = <AwaitExpression>node;
+        this.append("await ");
+        this.walk(awaitExpression.expression);
+        break;
+      }
 
       case SyntaxKind.ReturnStatement: {
         const statement = <ReturnStatement>node;
@@ -368,7 +384,7 @@ export default class CodeGenerator extends StringBuilder {
         if (!declaration.name)
           return this.error(declaration, "Anonymous functions not supported yet.", "UnsupportedAnonymousFunctions");
 
-        this.meta.functionIdentifiers.push(declaration.name.text);
+        this.meta.allFunctionIdentifiers.push(declaration.name.text);
         this.appendMethod(
           <Identifier>declaration.name,
           declaration.parameters,
@@ -713,12 +729,15 @@ export default class CodeGenerator extends StringBuilder {
         break;
       }
       case SyntaxKind.Block: {
+        const enclosingIsInScope = this.meta.inGlobalScope
+        this.meta.inGlobalScope = false;
         this.pushIndentation();
         this.newLine();
         for (const statement of (<Block>node).statements)
           this.walk(statement);
 
         this.popIndentation();
+        this.meta.inGlobalScope = enclosingIsInScope;
         break;
       }
       case SyntaxKind.SyntaxList: {
@@ -791,9 +810,24 @@ export default class CodeGenerator extends StringBuilder {
       }
     }
 
+    const isAsync = this.consumeFlag("Async");
+    if (isAsync)
+      this.meta.asyncFunctionIdentifiers.push(typeof name === "string" ? name : name.text);
+
     if (body) {
+      if (isAsync) {
+        this.pushIndentation();
+        this.newLine();
+        this.append("async! do");
+      }
+
       this.walk(body);
       this.popLastPart(); // remove extra newlines
+      if (isAsync) {
+        this.newLine();
+        this.append("end");
+        this.popIndentation();
+      }
     }
 
     this.newLine();
@@ -852,6 +886,10 @@ export default class CodeGenerator extends StringBuilder {
         }
         case SyntaxKind.StaticKeyword: {
           this.append(isProperty ? "@@" : "");
+          break;
+        }
+        case SyntaxKind.AsyncKeyword: {
+          this.flags.push("Async");
           break;
         }
         case SyntaxKind.DeclareKeyword: {
