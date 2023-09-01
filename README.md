@@ -12,6 +12,5 @@ A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with a
 
 - cli
 - codegen:
-  - type conversions
   - while/for loops
   - classes

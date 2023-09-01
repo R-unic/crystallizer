@@ -30,7 +30,8 @@ import {
   PropertyAccessExpression,
   AsExpression,
   TypeAssertion,
-  Expression
+  Expression,
+  WhileStatement
 } from "typescript";
 import Log from "./logger";
 import Util from "./utility";
@@ -133,8 +134,8 @@ export default class CodeGenerator {
       }
       case SyntaxKind.PrefixUnaryExpression: {
         const unary = <PrefixUnaryExpression>node;
+        this.append(Util.syntaxKindToText(unary.operator));
         this.walk(unary.operand);
-        this.append(` ${Util.syntaxKindToText(unary.operator)} `);
         break;
       }
       case SyntaxKind.PropertyAccessExpression: {
@@ -238,11 +239,40 @@ export default class CodeGenerator {
         break;
       }
 
+      case SyntaxKind.WhileStatement: {
+        const whileStatement = <WhileStatement>node;
+        const isUnary = whileStatement.expression.kind === SyntaxKind.PrefixUnaryExpression;
+        const condition = <PrefixUnaryExpression>whileStatement.expression;
+        const conditionInverted = (condition).operator === SyntaxKind.ExclamationToken;
+        if (isUnary && conditionInverted)
+          this.append("until ");
+        else
+          this.append("while ");
+
+        this.walk(isUnary ? condition.operand : condition);
+        if (whileStatement.statement.kind !== SyntaxKind.Block) {
+          this.pushIndentation();
+          this.newLine();
+          this.popIndentation();
+        }
+
+        this.walk(whileStatement.statement);
+        this.newLine();
+        this.append("end");
+        this.newLine();
+        break;
+      }
       case SyntaxKind.IfStatement: {
         const ifStatement = <IfStatement>node;
-        this.append("if ");
-        this.walk(ifStatement.expression)
+        const isUnary = ifStatement.expression.kind === SyntaxKind.PrefixUnaryExpression;
+        const condition = <PrefixUnaryExpression>ifStatement.expression;
+        const conditionInverted = isUnary && (condition).operator === SyntaxKind.ExclamationToken;
+        if (conditionInverted)
+          this.append("unless ");
+        else
+          this.append("if ");
 
+        this.walk(conditionInverted ? condition.operand : condition);
         if (ifStatement.thenStatement.kind !== SyntaxKind.Block) {
           this.pushIndentation();
           this.newLine();
@@ -262,6 +292,7 @@ export default class CodeGenerator {
           this.walk(ifStatement.elseStatement);
         }
 
+        this.newLine();
         this.append("end");
         this.newLine();
         break;
@@ -371,10 +402,8 @@ export default class CodeGenerator {
         break;
       }
 
-      default: {
-        console.log(`Unhandled AST syntax: ${Util.getSyntaxName(node.kind)}`);
-        process.exit(1);
-      }
+      default:
+        throw new Error(`Unhandled AST syntax: ${Util.getSyntaxName(node.kind)}`);
     }
   }
 
@@ -415,7 +444,7 @@ export default class CodeGenerator {
           break;
         }
         default: {
-          console.log(`Unhandled modifier: ${Util.getSyntaxName(modifier.kind)}`);
+          console.error(`Unhandled modifier: ${Util.getSyntaxName(modifier.kind)}`);
           process.exit(1);
         }
       }
@@ -469,10 +498,8 @@ export default class CodeGenerator {
         this.append(this.getMappedType(type.getText(this.sourceNode)));
         break;
       }
-      default: {
-        console.log(`Unhandled type node: ${Util.getSyntaxName(type.kind)}`);
-        process.exit(1);
-      }
+      default:
+        throw new Error(`Unhandled type node: ${Util.getSyntaxName(type.kind)}`);
     }
   }
 
