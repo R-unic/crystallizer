@@ -1,6 +1,6 @@
 import { writeFileSync } from "fs";
 import { CompilerOptions, Program, SourceFile, createCompilerHost, createProgram, flattenDiagnosticMessageText, getLineAndCharacterOfPosition, getPreEmitDiagnostics } from "typescript";
-import CrystalRenderer from "./renderer";
+import CodeGenerator from "./code-generator";
 import Log from "./logger";
 import path from "path";
 
@@ -33,8 +33,8 @@ export default class Crystallizer {
   }
 
   private compileFile(sourceFile: SourceFile): void {
-    const crystal = new CrystalRenderer(sourceFile);
-    const compiledCode = crystal.render();
+    const codeGen = new CodeGenerator(sourceFile);
+    const compiledCode = codeGen.generate();
     const outPath = sourceFile.fileName
       .replace(this.sourceDirName, this.outDirName)
       .replace(".ts", ".cr");

@@ -41,7 +41,7 @@ interface MetaValues {
   currentHashValueType?: string;
 }
 
-export default class CrystalRenderer {
+export default class CodeGenerator {
   private indentation = 0;
 
   private readonly generated: string[] = ["alias Num = Int64 | Int32 | Int16 | Int8 | Float64 | Float32 | UInt64 | UInt32 | UInt16 | UInt8\n"];
@@ -56,7 +56,7 @@ export default class CrystalRenderer {
     private readonly sourceNode: SourceFile
   ) {}
 
-  public render(): string {
+  public generate(): string {
     this.walkChildren(this.sourceNode);
     return this.generated.join("").trim();
   }
