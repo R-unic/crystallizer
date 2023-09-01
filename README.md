@@ -12,4 +12,4 @@ A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with a
 
 - cli
 - codegen:
-  - classes
+  - imports/exports
