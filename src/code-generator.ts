@@ -47,6 +47,7 @@ import path from "path";
 import Util from "./utility";
 import Log from "./logger";
 import TYPE_MAP from "./type-map";
+import StringBuilder from "./utility/string-builder";
 
 const UNDECLARABLE_TYPE_NAMES = ["i32", "f32", "u32", "i64", "f64", "u64"];
 const UNCASTABLE_TYPES = [SyntaxKind.UnknownKeyword, SyntaxKind.AnyKeyword];
@@ -67,20 +68,21 @@ const DEFAULT_META: Record<MetaKey, MetaValues[MetaKey]> = {
   publicClassProperties: []
 };
 
-export default class CodeGenerator {
-  private indentation = 0;
-
-  private readonly generated: string[] = ["alias Num = Int64 | Int32 | Int16 | Int8 | Float64 | Float32 | UInt64 | UInt32 | UInt16 | UInt8\n"];
+export default class CodeGenerator extends StringBuilder {
   private readonly flags: string[] = [];
   private readonly meta = DEFAULT_META;
 
   public constructor(
     private readonly sourceNode: SourceFile
-  ) {}
+  ) {
+    super();
+    this.append("alias Num = Int64 | Int32 | Int16 | Int8 | Float64 | Float32 | UInt64 | UInt32 | UInt16 | UInt8\n");
+    // eventually i gotta put this in a separate file, it's like a RuntimeLib
+  }
 
   public generate(): string {
     this.walkChildren(this.sourceNode);
-    return this.generated.join("").trim();
+    return this.generated.trim();
   }
 
   private walk(node: Node): void {
@@ -674,7 +676,7 @@ export default class CodeGenerator {
 
     if (body) {
       this.walk(body);
-      this.generated.pop(); // remove extra newlines
+      this.popLastPart(); // remove extra newlines
     }
 
     this.newLine();
@@ -801,8 +803,8 @@ export default class CodeGenerator {
       case SyntaxKind.AnyKeyword:
       case SyntaxKind.UnknownKeyword: {
         // remove any extra annotation text
-        if (this.lastGenerated() === " : ")
-          this.generated.pop();
+        if (this.peekLastPart() === " : ")
+          this.popLastPart();
         break;
       }
 
@@ -819,10 +821,6 @@ export default class CodeGenerator {
   private walkFlag(flag: NodeFlags): void {
     if (flag == NodeFlags.Const) return; // don't worry abt constants
     this.flags.push(NodeFlags[flag]);
-  }
-
-  private lastGenerated(): string {
-    return this.generated[this.generated.length - 1];
   }
 
   private getMappedType(text: string): string {
@@ -866,21 +864,5 @@ export default class CodeGenerator {
       node.getText(this.sourceNode)
     );
     process.exit(1);
-  }
-
-  private pushIndentation(): void {
-    this.indentation++;
-  }
-
-  private popIndentation(): void {
-    this.indentation--;
-  }
-
-  private newLine(): void {
-    this.append("\n" + "    ".repeat(this.indentation));
-  }
-
-  private append(...strings: string[]): void {
-    this.generated.push(...strings);
   }
 }
