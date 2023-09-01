@@ -263,6 +263,11 @@ export default class CrystalRenderer {
       case SyntaxKind.ObjectLiteralExpression: {
         const object = <ObjectLiteralExpression>node;
         this.append("{");
+        if (object.properties.length > 0) {
+          this.pushIndentation();
+          this.newLine();
+        }
+
         for (const property of object.properties) {
           const [ name, _, value ] = property.getChildren(this.sourceNode);
 
@@ -274,8 +279,15 @@ export default class CrystalRenderer {
 
           this.append(" => ");
           this.walk(value);
-          if (this.isNotLast(property, object.properties))
-            this.append(", ");
+          if (this.isNotLast(property, object.properties)) {
+            this.append(",");
+            this.newLine();
+          }
+        }
+
+        if (object.properties.length > 0) {
+          this.popIndentation();
+          this.newLine();
         }
 
         this.append("}");
@@ -290,7 +302,6 @@ export default class CrystalRenderer {
           this.resetMeta("currentHashKeyType");
           this.resetMeta("currentHashValueType");
         }
-
         break;
       }
       case SyntaxKind.ArrayLiteralExpression: {
