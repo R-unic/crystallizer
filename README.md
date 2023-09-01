@@ -10,6 +10,7 @@ A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with a
 
 # Todo
 
+- write tests
 - cli:
   - watch mode
 - codegen:
