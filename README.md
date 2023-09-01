@@ -15,5 +15,7 @@ A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with a
   - watch mode
 - codegen:
   - imports/exports
-  - async/await (idk how tf ima pull this off, somehow gotta make a promise class with fibers)
+  - async/await
   - instanceof (value.class < TypeToCheck)
+- fix:
+  - runtime lib require path when running compiler with no args

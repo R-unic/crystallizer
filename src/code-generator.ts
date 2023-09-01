@@ -53,7 +53,7 @@ import StringBuilder from "./string-builder";
 
 import TYPE_MAP from "./type-map";
 import BINARY_OPERATOR_MAP from "./binary-operator-map";
-import { mkdirSync, rmSync, rmdirSync } from "fs";
+import { mkdirSync, rmSync } from "fs";
 const UNDECLARABLE_TYPE_NAMES = ["i32", "f32", "u32", "i64", "f64", "u64"];
 const UNCASTABLE_TYPES = [SyntaxKind.UnknownKeyword, SyntaxKind.AnyKeyword];
 const CLASS_MODIFIERS = [SyntaxKind.PublicKeyword, SyntaxKind.PrivateKeyword, SyntaxKind.ProtectedKeyword, SyntaxKind.ReadonlyKeyword];
