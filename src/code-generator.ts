@@ -28,8 +28,6 @@ import {
   PrefixUnaryExpression,
   IfStatement,
   PropertyAccessExpression,
-  AsExpression,
-  TypeAssertion,
   Expression,
   WhileStatement,
   ForStatement,
@@ -40,12 +38,16 @@ import Util from "./utility";
 import TYPE_MAP from "./type-map";
 
 const UNDECLARABLE_TYPE_NAMES = ["i32", "f32", "u32", "i64", "f64", "u64"];
+const UNCASTABLE_TYPES = [SyntaxKind.UnknownKeyword, SyntaxKind.AnyKeyword];
+
 type MetaKey = "currentArrayType" | "currentHashKeyType" | "currentHashValueType";
 interface MetaValues {
   currentArrayType?: string;
   currentHashKeyType?: string;
   currentHashValueType?: string;
 }
+
+
 
 export default class CodeGenerator {
   private indentation = 0;
@@ -183,7 +185,7 @@ export default class CodeGenerator {
           this.append("(");
           for (const arg of call.arguments) {
             this.walk(arg);
-            if (this.isNotLast(arg, call.arguments))
+            if (Util.isNotLast(arg, call.arguments))
               this.append(", ");
           }
 
@@ -222,7 +224,6 @@ export default class CodeGenerator {
         break;
       }
       case SyntaxKind.FunctionDeclaration: {
-        // TODO: handle type parameters
         const declaration = <FunctionDeclaration>node;
         if (!declaration.name)
           return this.error(declaration, "Anonymous functions not supported yet.", "UnsupportedAnonymousFunctions");
@@ -240,6 +241,15 @@ export default class CodeGenerator {
         if (declaration.type) {
           this.append(" : ");
           this.walkType(declaration.type);
+        }
+
+        if (declaration.typeParameters) {
+          this.append(" forall ");
+          for (const typeParam of declaration.typeParameters) {
+            this.walk(typeParam.name);
+            if (Util.isNotLast(typeParam, declaration.typeParameters))
+              this.append(", ");
+          }
         }
 
         if (declaration.body) {
@@ -367,7 +377,7 @@ export default class CodeGenerator {
 
           this.append(" => ");
           this.walk(value);
-          if (this.isNotLast(property, object.properties)) {
+          if (Util.isNotLast(property, object.properties)) {
             this.append(",");
             this.newLine();
           }
@@ -454,7 +464,7 @@ export default class CodeGenerator {
   }
 
   private appendTypeCastMethod(type: TypeNode) {
-    if (type.kind === SyntaxKind.UnknownKeyword) return;
+    if (UNCASTABLE_TYPES.includes(type.kind)) return;
     this.append(".");
 
     const to = "to_";
@@ -519,6 +529,10 @@ export default class CodeGenerator {
         this.append("Bool");
         break;
       }
+      case SyntaxKind.VoidKeyword: {
+        this.append("Nil");
+        break;
+      }
       case SyntaxKind.TypeReference: {
         const ref = <TypeReferenceNode>type;
         const typeName = this.getMappedType(ref.typeName.getText(this.sourceNode));
@@ -527,7 +541,7 @@ export default class CodeGenerator {
           this.append("(");
           for (const typeArg of ref.typeArguments) {
             this.walkType(typeArg);
-            if (this.isNotLast(typeArg, ref.typeArguments))
+            if (Util.isNotLast(typeArg, ref.typeArguments))
               this.append(", ");
           }
           this.append(")");
@@ -546,6 +560,7 @@ export default class CodeGenerator {
         break;
       }
 
+      case SyntaxKind.AnyKeyword:
       case SyntaxKind.UnknownKeyword: {
         // remove any extra annotation text
         if (this.lastGenerated() === " : ")
@@ -570,10 +585,6 @@ export default class CodeGenerator {
 
   private lastGenerated(): string {
     return this.generated[this.generated.length - 1];
-  }
-
-  private isNotLast<T = unknown>(element: T, array: ArrayLike<T> & { indexOf(e: T): number; }): boolean {
-    return array.indexOf(element) !== array.length - 1
   }
 
   private getMappedType(text: string): string {

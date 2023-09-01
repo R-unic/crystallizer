@@ -6,6 +6,9 @@ export default new Map<string, string>([
   ["i32", "Int32"],
   ["u32", "UInt32"],
   ["string", "String"],
+  ["void", "Nil"],
+  ["undefined", "Nil"],
+  ["null", "Nil"],
   ["boolean", "Bool"],
   ["Record", "Hash"]
 ])
