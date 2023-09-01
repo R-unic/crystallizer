@@ -31,7 +31,9 @@ import {
   AsExpression,
   TypeAssertion,
   Expression,
-  WhileStatement
+  WhileStatement,
+  ForStatement,
+  PostfixUnaryExpression
 } from "typescript";
 import Log from "./logger";
 import Util from "./utility";
@@ -138,6 +140,19 @@ export default class CodeGenerator {
         this.walk(unary.operand);
         break;
       }
+      case SyntaxKind.PostfixUnaryExpression: {
+        const postfix = <PostfixUnaryExpression>node;
+        this.walk(postfix.operand);
+        this.append(" ");
+
+        if (postfix.operator == SyntaxKind.PlusPlusToken)
+          this.append("+");
+        else
+          this.append("-");
+
+        this.append("= 1");
+        break;
+      }
       case SyntaxKind.PropertyAccessExpression: {
         const access = <PropertyAccessExpression>node;
         const objectText = access.expression.getText(this.sourceNode);
@@ -239,6 +254,37 @@ export default class CodeGenerator {
         break;
       }
 
+      case SyntaxKind.ForStatement: {
+        const forStatement = <ForStatement>node;
+        if (forStatement.initializer)
+          this.walk(forStatement.initializer);
+
+        this.append("while ")
+        if (forStatement.condition)
+          this.walk(forStatement.condition);
+        else
+          this.append("true");
+
+        const bodyIsBlock = forStatement.statement.kind !== SyntaxKind.Block;
+        if (bodyIsBlock) {
+          this.pushIndentation();
+          this.newLine();
+        }
+
+        this.walk(forStatement.statement);
+        if (forStatement.incrementor) {
+          this.newLine();
+          this.walk(forStatement.incrementor);
+        }
+
+        if (bodyIsBlock)
+          this.popIndentation();
+
+        this.newLine();
+        this.append("end");
+        this.newLine();
+        break;
+      }
       case SyntaxKind.WhileStatement: {
         const whileStatement = <WhileStatement>node;
         const isUnary = whileStatement.expression.kind === SyntaxKind.PrefixUnaryExpression;
