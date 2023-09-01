@@ -454,6 +454,7 @@ export default class CodeGenerator {
   }
 
   private appendTypeCastMethod(type: TypeNode) {
+    if (type.kind === SyntaxKind.UnknownKeyword) return;
     this.append(".");
 
     const to = "to_";
@@ -544,6 +545,14 @@ export default class CodeGenerator {
         this.append(this.getMappedType(type.getText(this.sourceNode)));
         break;
       }
+
+      case SyntaxKind.UnknownKeyword: {
+        // remove any extra annotation text
+        if (this.lastGenerated() === " : ")
+          this.generated.pop();
+        break;
+      }
+
       default:
         throw new Error(`Unhandled type node: ${Util.getSyntaxName(type.kind)}`);
     }
@@ -557,6 +566,10 @@ export default class CodeGenerator {
   private walkFlag(flag: NodeFlags): void {
     if (flag == NodeFlags.Const) return; // don't worry abt constants
     this.flags.push(NodeFlags[flag]);
+  }
+
+  private lastGenerated(): string {
+    return this.generated[this.generated.length - 1];
   }
 
   private isNotLast<T = unknown>(element: T, array: ArrayLike<T> & { indexOf(e: T): number; }): boolean {
