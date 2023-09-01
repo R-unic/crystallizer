@@ -1,8 +1,9 @@
 import { readFileSync, readdirSync } from "fs";
-import ts from "typescript";
+import ts, { isSourceFile } from "typescript";
 import json5 from "json5";
 import path from "path";
 
+import Util from "./utility";
 import Crystallizer from "./crystallizer";
 
 export default class CLI {
@@ -24,15 +25,28 @@ export default class CLI {
 
   public runAll(): void {
     const sourceFileNames = readdirSync(path.join(this.projectDir, this.compilerOptions.rootDir!));
-    const sourceFiles: ts.SourceFile[] = [];
-    for (const fileName of sourceFileNames) {
-      const filePath = path.join("src", fileName);
-      const contents = readFileSync(path.join(this.projectDir, filePath));
-      const sourceFile = ts.createSourceFile(filePath, contents.toString(), ts.ScriptTarget.ES2015);
-      sourceFiles.push(sourceFile);
-    }
+    const sourceFiles: ts.SourceFile[] = this.getSourceFiles(sourceFileNames);
+
 
     const crystallizer = new Crystallizer(sourceFiles, this.compilerOptions, this.projectDir);
     crystallizer.compile();
+  }
+
+  private getSourceFiles(fileNames: string[]): ts.SourceFile[] {
+    const sourceFiles: ts.SourceFile[] = [];
+    for (const fileName of fileNames) {
+      const filePath = path.join(this.compilerOptions.rootDir!, fileName);
+      if (Util.isDirectory(filePath)) {
+        const childFileNames = readdirSync(filePath);
+        sourceFiles.push(...childFileNames.map(fileName => this.createSourceFile(path.join(filePath, fileName))));
+      } else
+        sourceFiles.push(this.createSourceFile(filePath));
+    }
+    return sourceFiles;
+  }
+
+  private createSourceFile(filePath: string): ts.SourceFile {
+    const contents = readFileSync(path.join(this.projectDir, filePath));
+    return ts.createSourceFile(filePath, contents.toString(), ts.ScriptTarget.ES2015);
   }
 }
