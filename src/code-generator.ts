@@ -45,6 +45,8 @@ import {
   ParenthesizedExpression,
   ForOfStatement,
 } from "typescript";
+import { copyFileSync, mkdirSync, readdirSync, rmSync } from "fs";
+import { exec } from "child_process";
 import path from "path";
 
 import Util from "./utility";
@@ -53,24 +55,28 @@ import StringBuilder from "./string-builder";
 
 import TYPE_MAP from "./type-map";
 import BINARY_OPERATOR_MAP from "./binary-operator-map";
-import { mkdirSync, rmSync } from "fs";
+import { platform } from "os";
 const UNDECLARABLE_TYPE_NAMES = ["i32", "f32", "u32", "i64", "f64", "u64"];
 const UNCASTABLE_TYPES = [SyntaxKind.UnknownKeyword, SyntaxKind.AnyKeyword];
 const CLASS_MODIFIERS = [SyntaxKind.PublicKeyword, SyntaxKind.PrivateKeyword, SyntaxKind.ProtectedKeyword, SyntaxKind.ReadonlyKeyword];
+const SNAKE_CASE_GLOBALS = ["setTimeout", "setInterval"]
 
-type MetaKey = "currentArrayType" | "currentHashKeyType" | "currentHashValueType" | "publicClassProperties";
-interface MetaValues {
+interface MetaValues extends Record<string, unknown> {
   currentArrayType?: string;
   currentHashKeyType?: string;
   currentHashValueType?: string;
   publicClassProperties: ParameterDeclaration[];
+  functionIdentifiers: string[];
+  walkingCallArguments: boolean;
 }
 
-const DEFAULT_META: Record<MetaKey, MetaValues[MetaKey]> = {
+const DEFAULT_META: MetaValues = {
   currentArrayType: undefined,
   currentHashKeyType: undefined,
   currentHashValueType: undefined,
-  publicClassProperties: []
+  publicClassProperties: [],
+  functionIdentifiers: [], // TODO: make this a Crystallizer property instead to track function identifiers across all files
+  walkingCallArguments: false
 };
 
 export default class CodeGenerator extends StringBuilder {
@@ -79,30 +85,48 @@ export default class CodeGenerator extends StringBuilder {
 
   public constructor(
     private readonly sourceNode: SourceFile,
-    private readonly projectDir: string
+    private readonly outDir: string
   ) { super(); }
 
   public generate(): string {
-    this.appendRuntimeLibImport();
+    this.handleRuntimeLib();
     this.walkChildren(this.sourceNode);
     return this.generated.trim();
   }
 
-  private appendRuntimeLibImport(): void {
-    const projectRuntimeLibPath = path.join(this.projectDir, "runtime_lib");
-    if (Util.isDirectory(projectRuntimeLibPath))
-      rmSync(projectRuntimeLibPath, {
+  private handleRuntimeLib(): void {
+    const projectRuntimeLibPath = path.join(this.outDir, "runtime_lib");
+    if (Util.isDirectory(projectRuntimeLibPath)) {
+      const rf = {
         force: true,
         recursive: true
-      });
-    if (!Util.isDirectory(projectRuntimeLibPath)) {
-      mkdirSync(projectRuntimeLibPath);
-      Util.copyDirectory(path.join(__dirname, "../runtime_lib"), projectRuntimeLibPath);
+      };
+
+      rmSync(projectRuntimeLibPath, rf);
+      rmSync(path.join(projectRuntimeLibPath, "lib"), rf);
+      rmSync(path.join(projectRuntimeLibPath, "shard.lock"), rf);
     }
 
-    const relativeProjectPath = path.relative(this.sourceNode.fileName, this.projectDir);
-    const fixedProjectPath = relativeProjectPath.split(path.sep).slice(0, -3).join(path.sep)
-    this.append(`require "${path.join(fixedProjectPath, "runtime_lib/*")}"\n\n`);
+    Util.copyDirectory(path.join(__dirname, "../runtime_lib"), projectRuntimeLibPath);
+
+    const runtimeLibShard = path.join(projectRuntimeLibPath, "shard.yml");
+    copyFileSync(runtimeLibShard, path.join(this.outDir, "shard.yml"));
+    rmSync(runtimeLibShard);
+
+    const isWindows = platform() === "win32";
+    exec((isWindows ? "where.exe" : "which") + " shards", (error, stdout, stderr) => {
+      if (error || stderr)
+          return console.error(`Error: ${error?.message ?? stderr}`);
+
+      const outParts = stdout.split("shards: ");
+      const shardsExecutable = outParts[outParts.length - 1].trim();
+      exec(`"${path.resolve(shardsExecutable)}" install`, { cwd: this.outDir }, (error, _, stderr) => {
+        if (error || stderr)
+          return console.error(`Error: ${error?.message ?? stderr}`);
+      });
+    })
+
+    this.append(`require "./runtime_lib/*"\n\n`);
   }
 
   private walk(node: Node): void {
@@ -115,8 +139,8 @@ export default class CodeGenerator extends StringBuilder {
         break
       }
       case SyntaxKind.Identifier: {
-        const isTypeIdent = this.consumeFlag("TypeIdent");
         const { text } = <Identifier>node;
+        const isTypeIdent = this.consumeFlag("TypeIdent");
         this.append(isTypeIdent ? this.getMappedType(text) : text);
         break;
       }
@@ -257,17 +281,39 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.CallExpression: {
         const call = <CallExpression>node;
-        this.walk(call.expression);
-        if (call.arguments.length > 0) {
+        let callArguments: NodeArray<Expression> | Expression[] = call.arguments;
+        if (call.expression.kind === SyntaxKind.Identifier && SNAKE_CASE_GLOBALS.includes((<Identifier>call.expression).text)) {
+          const functionName = (<Identifier>call.expression).text;
+          this.append(Util.toSnakeCase(functionName));
+          if (functionName === "setTimeout" || functionName === "setInterval")
+            callArguments = callArguments.map((_, index, array) => array[array.length - 1 - index]);
+        } else
+          this.walk(call.expression);
+
+        let block: Identifier | undefined;
+        if (callArguments.length > 0) {
           this.append("(");
-          for (const arg of call.arguments) {
-            this.walk(arg);
-            if (Util.isNotLast(arg, call.arguments))
-              this.append(", ");
-          }
+          for (const arg of callArguments)
+            if (arg.kind === SyntaxKind.Identifier && this.meta.functionIdentifiers.includes((<Identifier>arg).text))
+              block = <Identifier>arg;
+            else {
+              this.walk(arg);
+              if (Util.isNotLast(arg, callArguments))
+                this.append(", ");
+            }
+
+          if (block)
+            this.popLastPart(); // remove extra comma
 
           this.append(")");
         }
+
+        if (block) {
+          this.append(" { ");
+          this.walk(block)
+          this.append("() }");
+        }
+
         break;
       }
       case SyntaxKind.NewExpression: {
@@ -322,6 +368,7 @@ export default class CodeGenerator extends StringBuilder {
         if (!declaration.name)
           return this.error(declaration, "Anonymous functions not supported yet.", "UnsupportedAnonymousFunctions");
 
+        this.meta.functionIdentifiers.push(declaration.name.text);
         this.appendMethod(
           <Identifier>declaration.name,
           declaration.parameters,
@@ -390,11 +437,10 @@ export default class CodeGenerator extends StringBuilder {
             this.newLine();
         }
 
-        const publicProperties = <ParameterDeclaration[]>this.meta.publicClassProperties;
-        if (publicProperties.length > 0)
+        if (this.meta.publicClassProperties.length > 0) {}
           this.newLine();
 
-        for (const publicProperty of publicProperties) {
+        for (const publicProperty of this.meta.publicClassProperties) {
           this.append("property ");
           this.walk(publicProperty.name);
           if (publicProperty.type) {
@@ -402,7 +448,7 @@ export default class CodeGenerator extends StringBuilder {
             this.walkType(publicProperty.type);
           }
 
-          if (Util.isNotLast(publicProperty, publicProperties))
+          if (Util.isNotLast(publicProperty, this.meta.publicClassProperties))
             this.newLine();
         }
 
@@ -578,6 +624,7 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.ExpressionStatement: {
         this.walk((<ExpressionStatement>node).expression);
+        this.newLine();
         break;
       }
 
@@ -617,9 +664,9 @@ export default class CodeGenerator extends StringBuilder {
             return this.error(object, "Empty objects must have a Record type annotation.", "UnannotatedEmptyObject");
 
           this.append(" of ");
-          this.append(<string>this.meta.currentHashKeyType);
+          this.append(this.meta.currentHashKeyType);
           this.append(" => ");
-          this.append(<string>this.meta.currentHashValueType);
+          this.append(this.meta.currentHashValueType);
           this.resetMeta("currentHashKeyType");
           this.resetMeta("currentHashValueType");
         }
@@ -631,7 +678,7 @@ export default class CodeGenerator extends StringBuilder {
         if (!this.meta.currentArrayType)
           return this.error(array, "All arrays must have a type annotation.", "UnannotatedArray");
 
-        const elementType = this.getMappedType(<string>this.meta.currentArrayType);
+        const elementType = this.getMappedType(this.meta.currentArrayType);
         this.resetMeta("currentArrayType");
 
         this.append("TsArray(");
@@ -716,7 +763,7 @@ export default class CodeGenerator extends StringBuilder {
         const isPublic = modifierTypes.includes(SyntaxKind.PublicKeyword);
         const isStatic = modifierTypes.includes(SyntaxKind.StaticKeyword);
         if (isPublic)
-          (<ParameterDeclaration[]>this.meta.publicClassProperties).push(param);
+          this.meta.publicClassProperties.push(param);
         if (CLASS_MODIFIERS.includes(modifierTypes[0]))
           if (isStatic)
             this.append("@@");
@@ -924,7 +971,8 @@ export default class CodeGenerator extends StringBuilder {
     return matched;
   }
 
-  private resetMeta(key: MetaKey): void {
+  private resetMeta(key: keyof MetaValues): void {
+    if (typeof DEFAULT_META[key] !== "undefined") return;
     this.meta[key] = undefined;
   }
 

@@ -32,7 +32,7 @@ export default class Crystallizer {
   }
 
   private compileFile(sourceFile: SourceFile): void {
-    const codeGen = new CodeGenerator(sourceFile, this.projectDir);
+    const codeGen = new CodeGenerator(sourceFile, this.compilerOptions.outDir!);
     const compiledCode = codeGen.generate();
     const outPath = sourceFile.fileName
       .replace(this.sourceDirName, this.outDirName)

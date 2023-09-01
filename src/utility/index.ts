@@ -5,5 +5,15 @@ import toPascalCase from "./to-pascal-case";
 import prettyPrintNode from "./pretty-print-node";
 import isDirectory from "./is-directory";
 import copyDirectory from "./copy-directory";
+import toSnakeCase from "./to-snake-case";
 
-export default { getSyntaxName, syntaxKindToText, isNotLast, toPascalCase, prettyPrintNode, isDirectory, copyDirectory };
+export default {
+  getSyntaxName,
+  syntaxKindToText,
+  isNotLast,
+  toPascalCase,
+  toSnakeCase,
+  prettyPrintNode,
+  isDirectory,
+  copyDirectory
+};

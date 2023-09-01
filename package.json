@@ -28,7 +28,6 @@
   },
   "homepage": "https://github.com/R-unic/crystallizer#readme",
   "dependencies": {
-    "@types/json5": "^2.2.0",
     "@types/node": "^20.5.7",
     "colors.ts": "^1.0.20",
     "json5": "^2.2.3",
