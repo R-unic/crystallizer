@@ -31,14 +31,25 @@ import {
   Expression,
   WhileStatement,
   ForStatement,
-  PostfixUnaryExpression
+  PostfixUnaryExpression,
+  ClassDeclaration,
+  ExpressionWithTypeArguments,
+  PropertyDeclaration,
+  PropertySignature,
+  MethodSignature,
+  MethodDeclaration,
+  TypeParameterDeclaration,
+  ConstructorDeclaration,
+  NewExpression
 } from "typescript";
 import Log from "./logger";
 import Util from "./utility";
 import TYPE_MAP from "./type-map";
+import path from "path";
 
 const UNDECLARABLE_TYPE_NAMES = ["i32", "f32", "u32", "i64", "f64", "u64"];
 const UNCASTABLE_TYPES = [SyntaxKind.UnknownKeyword, SyntaxKind.AnyKeyword];
+const CLASS_MODIFIERS = [SyntaxKind.PublicKeyword, SyntaxKind.PrivateKeyword, SyntaxKind.ProtectedKeyword, SyntaxKind.ReadonlyKeyword];
 
 type MetaKey = "currentArrayType" | "currentHashKeyType" | "currentHashValueType";
 interface MetaValues {
@@ -46,8 +57,6 @@ interface MetaValues {
   currentHashKeyType?: string;
   currentHashValueType?: string;
 }
-
-
 
 export default class CodeGenerator {
   private indentation = 0;
@@ -129,6 +138,20 @@ export default class CodeGenerator {
         break;
       }
 
+      case SyntaxKind.ExpressionWithTypeArguments: {
+        const typedExpression = <ExpressionWithTypeArguments>node;
+        this.walk(typedExpression.expression);
+        if (typedExpression.typeArguments) {
+          this.append("(");
+          for (const typeArg of typedExpression.typeArguments) {
+            this.walkType(typeArg);
+            if (Util.isNotLast(typeArg, typedExpression.typeArguments))
+              this.append(", ");
+          }
+          this.append(")");
+        }
+        break;
+      }
       case SyntaxKind.BinaryExpression: {
         const binary = <BinaryExpression>node;
         this.walk(binary.left);
@@ -166,11 +189,10 @@ export default class CodeGenerator {
           }
 
         this.walk(access.expression);
-        this.append(".");
+        this.append(access.expression.kind === SyntaxKind.ThisKeyword ? "" : ".");
         this.walk(access.name);
         break;
       }
-
       case SyntaxKind.TypeAssertionExpression:
       case SyntaxKind.AsExpression: {
         const cast = <Node & { expression: Expression; type: TypeNode }>node;
@@ -191,6 +213,23 @@ export default class CodeGenerator {
 
           this.append(")");
         }
+        break;
+      }
+      case SyntaxKind.NewExpression: {
+        const newExpression = <NewExpression>node;
+        this.walk(newExpression.expression);
+        this.append(".new");
+        if (newExpression.arguments && newExpression.arguments.length > 0) {
+          this.append("(");
+          for (const arg of newExpression.arguments) {
+            this.walk(arg);
+            if (Util.isNotLast(arg, newExpression.arguments))
+              this.append(", ");
+          }
+
+          this.append(")");
+        }
+
         break;
       }
 
@@ -228,39 +267,131 @@ export default class CodeGenerator {
         if (!declaration.name)
           return this.error(declaration, "Anonymous functions not supported yet.", "UnsupportedAnonymousFunctions");
 
-        this.append("def ")
-        this.walk(declaration.name);
+        this.appendMethod(
+          <Identifier>declaration.name,
+          declaration.parameters,
+          declaration.modifiers,
+          declaration.type,
+          declaration.typeParameters,
+          declaration.body
+        );
 
-        if (declaration.parameters.length > 0) {
-          this.append("(");
-          for (const param of declaration.parameters)
-            this.walk(param);
-          this.append(")");
+        break;
+      }
+      case SyntaxKind.Constructor: {
+        const constructor = <ConstructorDeclaration>node;
+        this.appendMethod(
+          "initialize",
+          constructor.parameters,
+          constructor.modifiers,
+          constructor.type,
+          constructor.typeParameters,
+          constructor.body
+        );
+
+        break;
+      }
+      case SyntaxKind.ThisKeyword: {
+        this.append("@");
+        break;
+      }
+      case SyntaxKind.ClassDeclaration: {
+        const declaration = <ClassDeclaration>node;
+        this.append("class ");
+        if (declaration.name)
+          this.walk(declaration.name);
+        else
+          this.append(Util.toPascalCase(path.basename(this.sourceNode.fileName)));
+
+        if (declaration.typeParameters) {
+          this.append("(")
+          for (const typeParam of declaration.typeParameters)
+            this.walk(typeParam.name);
+
+          this.append(")")
         }
+
+        const mixins: ExpressionWithTypeArguments[] = [];
+        for (const heritageClause of declaration.heritageClauses ?? [])
+          if (heritageClause.token == SyntaxKind.ExtendsKeyword) {
+            this.append(" < ")
+            this.walk(heritageClause.types[0]);
+          } else
+            mixins.push(...heritageClause.types);
+
+        this.pushIndentation();
+        this.newLine();
+
+        for (const mixin of mixins) {
+          this.append("include ");
+          this.walk(mixin);
+          this.newLine();
+        }
+
+        for (const member of declaration.members) {
+          this.walk(member);
+          if (Util.isNotLast(member, declaration.members))
+            this.newLine();
+        }
+
+        this.popIndentation();
+        this.newLine();
+        this.append("end");
+        this.newLine();
+        break;
+      }
+      case SyntaxKind.PropertySignature: {
+        const signature = <PropertySignature>node;
+        this.walkModifiers(signature);
+        this.walk(signature.name);
+
+        if (signature.type) {
+          this.append(" : ");
+          this.walkType(signature.type);
+        }
+
+        break;
+      }
+      case SyntaxKind.PropertyDeclaration: {
+        const declaration = <PropertyDeclaration>node;
+        this.walkModifiers(declaration);
+        this.walk(declaration.name);
 
         if (declaration.type) {
           this.append(" : ");
           this.walkType(declaration.type);
         }
 
-        if (declaration.typeParameters) {
-          this.append(" forall ");
-          for (const typeParam of declaration.typeParameters) {
-            this.walk(typeParam.name);
-            if (Util.isNotLast(typeParam, declaration.typeParameters))
-              this.append(", ");
-          }
+        if (declaration.initializer) {
+          this.append(" = ");
+          this.walk(declaration.initializer);
         }
 
-        if (declaration.body) {
-          this.walk(declaration.body);
-          this.generated.pop();
-          this.generated.pop();
-        }
+        break;
+      }
+      case SyntaxKind.MethodSignature: {
+        const signature = <MethodSignature>node;
+        this.appendMethod(
+          <Identifier>signature.name,
+          signature.parameters,
+          signature.modifiers,
+          signature.type,
+          signature.typeParameters
+        );
 
-        this.newLine();
-        this.append("end");
-        this.newLine();
+        break;
+      }
+      case SyntaxKind.MethodDeclaration: {
+        const declaration = <MethodDeclaration>node;
+        this.appendMethod(
+          <Identifier>declaration.name,
+          declaration.parameters,
+          declaration.modifiers,
+          declaration.type,
+          declaration.typeParameters,
+          declaration.body
+        );
+
         break;
       }
 
@@ -394,9 +525,9 @@ export default class CodeGenerator {
             return this.error(object, "Empty objects must have a Record type annotation.", "UnannotatedEmptyObject");
 
           this.append(" of ");
-          this.append(this.meta.currentHashKeyType);
+          this.append(<string>this.meta.currentHashKeyType);
           this.append(" => ");
-          this.append(this.meta.currentHashValueType);
+          this.append(<string>this.meta.currentHashValueType);
           this.resetMeta("currentHashKeyType");
           this.resetMeta("currentHashValueType");
         }
@@ -418,7 +549,7 @@ export default class CodeGenerator {
             return this.error(array, "Empty arrays must have a type annotation.", "UnannotatedEmptyArray");
 
           this.append(" of ");
-          this.append(this.meta.currentArrayType);
+          this.append(<string>this.meta.currentArrayType);
           this.resetMeta("currentArrayType");
         }
 
@@ -463,6 +594,64 @@ export default class CodeGenerator {
     }
   }
 
+  private appendMethod(
+    name: Identifier | string,
+    parameters: NodeArray<ParameterDeclaration>,
+    modifiers?: NodeArray<ModifierLike>,
+    type?: TypeNode,
+    typeParameters?: NodeArray<TypeParameterDeclaration>,
+    body?: Block
+  ) {
+
+    this.walkModifierList(modifiers?.values(), false);
+    this.append("def ")
+
+    const isStatic = modifiers?.map(mod => mod.kind)?.includes(SyntaxKind.StaticKeyword);
+    if (isStatic)
+      this.append("self.");
+
+    if (typeof name === "string")
+      this.append(name);
+    else
+      this.walk(name);
+
+    if (parameters.length > 0) {
+      this.append("(");
+      for (const param of parameters) {
+        const modifierTypes = param.modifiers?.map(mod => mod.kind);
+        if (modifierTypes?.includes(SyntaxKind.PublicKeyword) || modifierTypes?.includes(SyntaxKind.PrivateKeyword) || modifierTypes?.includes(SyntaxKind.ProtectedKeyword))
+          this.append("@");
+
+        this.walk(param);
+        if (Util.isNotLast(param, parameters))
+          this.append(", ");
+      }
+      this.append(")");
+    }
+
+    if (type) {
+      this.append(" : ");
+      this.walkType(type);
+    }
+
+    if (typeParameters) {
+      this.append(" forall ");
+      for (const typeParam of typeParameters) {
+        this.walk(typeParam.name);
+        if (Util.isNotLast(typeParam, typeParameters))
+          this.append(", ");
+      }
+    }
+
+    if (body) {
+      this.walk(body);
+      this.generated.pop(); // remove extra newlines
+    }
+
+    this.newLine();
+    this.append("end");
+  }
+
   private appendTypeCastMethod(type: TypeNode) {
     if (UNCASTABLE_TYPES.includes(type.kind)) return;
     this.append(".");
@@ -494,9 +683,29 @@ export default class CodeGenerator {
     }
   }
 
-  private walkModifiers(container: { modifiers?: NodeArray<ModifierLike> }) {
-    for (const modifier of container.modifiers ?? [])
-      switch(modifier.kind) {
+  private walkModifiers(container: { modifiers?: NodeArray<ModifierLike> }, isProperty = true): void {
+    this.walkModifierList(container.modifiers?.values(), isProperty);
+  }
+
+  private walkModifierList(modifiers?: IterableIterator<ModifierLike>, isProperty = true) {
+    for (const modifier of modifiers ?? [].values())
+      switch (modifier.kind) {
+        case SyntaxKind.PrivateKeyword: {
+          this.append(isProperty ? "@" : "private ");
+          break;
+        }
+        case SyntaxKind.PublicKeyword: {
+          this.append(isProperty ? "property " : "");
+          break;
+        }
+        case SyntaxKind.ReadonlyKeyword: {
+          this.append("getter ");
+          break;
+        }
+        case SyntaxKind.StaticKeyword: {
+          this.append(isProperty ? "@@" : "");
+          break;
+        }
         case SyntaxKind.DeclareKeyword: {
           break;
         }
@@ -639,8 +848,7 @@ export default class CodeGenerator {
   }
 
   private newLine(): void {
-    this.append("\n");
-    this.append("    ".repeat(this.indentation));
+    this.append("\n" + "    ".repeat(this.indentation));
   }
 
   private append(...strings: string[]): void {

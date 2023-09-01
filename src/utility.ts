@@ -15,6 +15,11 @@ export default class Util {
     }
   }
 
+  public static toPascalCase(input: string): string {
+    const modifiedInput = input.replace(/[_\-]([a-z])/gi, (_, match) => match.toUpperCase());
+    return modifiedInput.charAt(0).toUpperCase() + modifiedInput.slice(1);
+  }
+
   public static isNotLast<T = unknown>(element: T, array: ArrayLike<T> & { indexOf(e: T): number; }): boolean {
     return array.indexOf(element) !== array.length - 1
   }
