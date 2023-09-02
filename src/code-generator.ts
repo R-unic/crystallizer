@@ -46,6 +46,7 @@ import {
   ForOfStatement,
   AwaitExpression,
   LabeledStatement,
+  ArrowFunction,
 } from "typescript";
 import { rmSync } from "fs";
 import { platform } from "os";
@@ -130,13 +131,13 @@ export default class CodeGenerator extends StringBuilder {
     const isWindows = platform() === "win32";
     exec((isWindows ? "where.exe" : "which") + " shards", (error, stdout, stderr) => {
       if (error || stderr)
-        return console.error(`Error: ${error?.message ?? stderr}`);
+        return console.error(`Error: ${error?.message ? error.message + stderr : stderr}`);
 
       const outParts = stdout.split("shards: ");
       const shardsExecutable = outParts[outParts.length - 1].trim();
       exec(`"${path.resolve(shardsExecutable)}" install`, { cwd: this.options.outDir }, (error, _, stderr) => {
         if (error || stderr)
-          return console.error(`Error: ${error?.message ?? stderr}`);
+          return console.error(`Error: ${error?.message ? error.message + stderr : stderr}`);
       });
     })
 
@@ -311,27 +312,35 @@ export default class CodeGenerator extends StringBuilder {
         } else
           this.walk(call.expression);
 
-        let block: Identifier | undefined;
+        let blockName: Identifier | undefined;
         if (callArguments.length > 0) {
+          let isArrowFunction = false;
+
           this.append("(");
           for (const arg of callArguments)
             if (arg.kind === SyntaxKind.Identifier && this.meta.allFunctionIdentifiers.includes((<Identifier>arg).text))
-              block = <Identifier>arg;
-            else {
+              blockName = <Identifier>arg;
+            else if (arg.kind === SyntaxKind.ArrowFunction) {
+              isArrowFunction = true;
+              this.popLastPart();
+              this.walk(arg);
+              break;
+            } else {
               this.walk(arg);
               if (Util.isNotLast(arg, callArguments))
                 this.append(", ");
             }
 
-          if (block)
+          if (blockName)
             this.popLastPart(); // remove extra comma
 
-          this.append(")");
+          if (!isArrowFunction)
+            this.append(")");
         }
 
-        if (block) {
+        if (blockName) {
           this.append(" { ");
-          this.walk(block)
+          this.walk(blockName)
           this.append("() }");
         }
 
@@ -363,6 +372,8 @@ export default class CodeGenerator extends StringBuilder {
 
       case SyntaxKind.ReturnStatement: {
         const statement = <ReturnStatement>node;
+        this.pushFlag("Returned");
+
         this.append("return");
         if (statement.expression) {
           this.append(" ");
@@ -406,6 +417,33 @@ export default class CodeGenerator extends StringBuilder {
         );
 
         this.newLine();
+        break;
+      }
+      case SyntaxKind.ArrowFunction: {
+        const arrowFunction = <ArrowFunction>node;
+        const codegen = this;
+        function appendParamNameList(arrowFunction: ArrowFunction) {
+          for (const parameter of arrowFunction.parameters) {
+            codegen.walk(parameter.name);
+            if (Util.isNotLast(parameter, arrowFunction.parameters))
+              codegen.append(", ");
+          }
+        }
+
+        this.append(" do");
+        if (arrowFunction.parameters.length > 0) {
+          this.append(" |");
+          appendParamNameList(arrowFunction);
+          this.append("|");
+        }
+
+
+        this.pushIndentation();
+        this.newLine();
+        this.walk(arrowFunction.body);
+        this.popIndentation();
+        this.newLine();
+        this.append("end");
         break;
       }
       case SyntaxKind.Constructor: {
@@ -830,15 +868,20 @@ export default class CodeGenerator extends StringBuilder {
     if (isAsync)
       this.meta.asyncFunctionIdentifiers.push(typeof name === "string" ? name : name.text);
 
-    if (body) {
-      if (isAsync) {
-        this.pushIndentation();
-        this.newLine();
-        this.append("async! do");
-      }
+      if (body) {
+        if (isAsync) {
+          this.pushIndentation();
+          this.newLine();
+          this.append("async! do");
+        }
 
       this.walk(body);
-      this.popLastPart(); // remove extra newlines
+      const returned = this.consumeFlag("Returned");
+      if (!returned)
+        this.append("return");
+      else
+        this.popLastPart(); // remove extra newlines
+
       if (isAsync) {
         this.newLine();
         this.append("end");
@@ -905,7 +948,7 @@ export default class CodeGenerator extends StringBuilder {
           break;
         }
         case SyntaxKind.AsyncKeyword: {
-          this.flags.push("Async");
+          this.pushFlag("Async");
           break;
         }
         case SyntaxKind.DeclareKeyword: {
@@ -991,7 +1034,12 @@ export default class CodeGenerator extends StringBuilder {
 
   private walkFlag(flag: NodeFlags): void {
     if (flag == NodeFlags.Const) return; // don't worry abt constants
-    this.flags.push(NodeFlags[flag]);
+    this.pushFlag(NodeFlags[flag]);
+  }
+
+  private pushFlag(flag: string) {
+    if (this.flags.includes(flag)) return;
+    this.flags.push(flag);
   }
 
   private getMappedType(text: string): string {

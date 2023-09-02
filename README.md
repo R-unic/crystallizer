@@ -11,11 +11,9 @@ A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with a
 
 # Todo
 
-- write tests
 - cli:
   - watch mode
 - codegen:
   - imports/exports
-  - disallow Promise.then, Promise.catch, Promise.finally, etc.
   - instanceof (value.class < TypeToCheck)
   - blocks with arguments

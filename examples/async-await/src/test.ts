@@ -3,8 +3,8 @@ async function myAsyncFunction(): Promise<string> {
 }
 
 async function main(): Promise<void> {
-  const result = await myAsyncFunction();
-  console.log(result);
+  myAsyncFunction()
+    .then(res => console.log(res));
 }
 
 main();

@@ -9,6 +9,6 @@ license: MIT
 
 dependencies:
   await_async:
-    github: anykeyh/await_async
+    github: R-unic/await_async
   schedule:
     github: hugoabonizio/schedule.cr
