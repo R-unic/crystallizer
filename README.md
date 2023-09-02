@@ -6,8 +6,8 @@ A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with a
 * You must have Crystal and TypeScript installed to be able to actually use it.
 
 1. Clone the repository
-2. Run `npm i && tsc && npm run build-binary`
-3. Access executable from `bin`
+2. Run `npm i && tsc`
+3. Run `npm start <directory>` to compile all TypeScript files inside of `<directory>` **OR** `npm start` to compile all TypeScript files inside your current working directory
 
 # Todo
 
