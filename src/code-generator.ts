@@ -45,6 +45,7 @@ import {
   ParenthesizedExpression,
   ForOfStatement,
   AwaitExpression,
+  LabeledStatement,
 } from "typescript";
 import { rmSync } from "fs";
 import { platform } from "os";
@@ -83,13 +84,18 @@ const DEFAULT_META: MetaValues = {
   inGlobalScope: true
 };
 
+interface CodeGenOptions {
+  readonly testRun?: boolean;
+  readonly outDir?: string;
+}
+
 export default class CodeGenerator extends StringBuilder {
   private readonly flags: string[] = [];
   private readonly meta = DEFAULT_META;
 
   public constructor(
     private readonly sourceNode: SourceFile,
-    private readonly outDir: string
+    private readonly options: CodeGenOptions,
   ) { super(); }
 
   public generate(): string {
@@ -99,7 +105,10 @@ export default class CodeGenerator extends StringBuilder {
   }
 
   private handleRuntimeLib(): void {
-    const projectRuntimeLibPath = path.join(this.outDir, "runtime_lib");
+    if (!this.options.outDir) return;
+    if (this.options.testRun) return;
+
+    const projectRuntimeLibPath = path.join(this.options.outDir, "runtime_lib");
     if (Util.Files.isDirectory(projectRuntimeLibPath)) {
       const rf = {
         force: true,
@@ -114,18 +123,18 @@ export default class CodeGenerator extends StringBuilder {
     Util.Files.copyDirectory(path.join(__dirname, "../runtime_lib"), projectRuntimeLibPath);
 
     const runtimeLibShard = path.join(projectRuntimeLibPath, "shard.yml");
-    Util.Files.moveFile(runtimeLibShard, path.join(this.outDir, "shard.yml"));
     const crystalTypeHelpers = path.join(projectRuntimeLibPath, TYPE_HELPER_FILENAME)
-    Util.Files.moveFile(crystalTypeHelpers, path.join(this.outDir, TYPE_HELPER_FILENAME));
+    Util.Files.moveFile(runtimeLibShard, path.join(this.options.outDir, "shard.yml"));
+    Util.Files.moveFile(crystalTypeHelpers, path.join(this.options.outDir, TYPE_HELPER_FILENAME));
 
     const isWindows = platform() === "win32";
     exec((isWindows ? "where.exe" : "which") + " shards", (error, stdout, stderr) => {
       if (error || stderr)
-          return console.error(`Error: ${error?.message ?? stderr}`);
+        return console.error(`Error: ${error?.message ?? stderr}`);
 
       const outParts = stdout.split("shards: ");
       const shardsExecutable = outParts[outParts.length - 1].trim();
-      exec(`"${path.resolve(shardsExecutable)}" install`, { cwd: this.outDir }, (error, _, stderr) => {
+      exec(`"${path.resolve(shardsExecutable)}" install`, { cwd: this.options.outDir }, (error, _, stderr) => {
         if (error || stderr)
           return console.error(`Error: ${error?.message ?? stderr}`);
       });
@@ -723,7 +732,7 @@ export default class CodeGenerator extends StringBuilder {
         break;
       }
       case SyntaxKind.FalseKeyword: {
-        this.append("true");
+        this.append("false");
         break;
       }
       case SyntaxKind.FirstLiteralToken: {
@@ -744,6 +753,11 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.SyntaxList: {
         this.walkChildren(node);
+        break;
+      }
+
+      case SyntaxKind.LabeledStatement: {
+        // error: unsupported
         break;
       }
 
