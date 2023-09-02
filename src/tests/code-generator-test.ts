@@ -70,4 +70,58 @@ describe("CodeGenerator#generate", () => {
       ].join("\n"));
     });
   });
+  describe("should transpile classes", () => {
+    it("without generics", () => {
+      const codeGen = createTestCodeGen([
+        "class Rect {",
+        TAB + "public constructor(",
+        TAB + TAB + "public readonly width: number,",
+        TAB + TAB + "public readonly height: number",
+        TAB + ") {}",
+        TAB + "public area(): number {",
+        TAB + TAB + "return this.width * this.height;",
+        TAB + "}",
+        "}"
+      ].join("\n"));
+
+      const crystalCode = codeGen.generate();
+      crystalCode.should.equal([
+        "class Rect",
+        TAB + "def initialize(@width : Num, @height : Num)",
+        TAB + "end",
+        TAB + "def area : Num",
+        TAB + TAB + "return @width * @height",
+        TAB + "end",
+        TAB + "property width : Num",
+        TAB + "property height : Num",
+        "end"
+      ].join("\n"));
+    });
+    it("with generics", () => {
+      const codeGen = createTestCodeGen([
+        "class Rect<T> {",
+        TAB + "public constructor(",
+        TAB + TAB + "public readonly width: T,",
+        TAB + TAB + "public readonly height: T",
+        TAB + ") {}",
+        TAB + "public area(): T {",
+        TAB + TAB + "return this.width * this.height;",
+        TAB + "}",
+        "}"
+      ].join("\n"));
+
+      const crystalCode = codeGen.generate();
+      crystalCode.should.equal([
+        "class Rect(T)",
+        TAB + "def initialize(@width : T, @height : T)",
+        TAB + "end",
+        TAB + "def area : T",
+        TAB + TAB + "return @width * @height",
+        TAB + "end",
+        TAB + "property width : T",
+        TAB + "property height : T",
+        "end"
+      ].join("\n"));
+    });
+  });
 });

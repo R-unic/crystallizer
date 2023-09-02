@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from "fs";
-import ts, { isSourceFile } from "typescript";
+import ts from "typescript";
 import json5 from "json5";
 import path from "path";
 
@@ -26,8 +26,6 @@ export default class CLI {
   public runAll(): void {
     const sourceFileNames = readdirSync(path.join(this.projectDir, this.compilerOptions.rootDir!));
     const sourceFiles: ts.SourceFile[] = this.getSourceFiles(sourceFileNames);
-
-
     const crystallizer = new Crystallizer(sourceFiles, this.compilerOptions, this.projectDir);
     crystallizer.compile();
   }

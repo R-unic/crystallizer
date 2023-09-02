@@ -45,8 +45,6 @@ export default class Crystallizer {
   }
 
   private handleDiagnostics(program: Program): void {
-
-    // const x: string = 123
     const emitResult = program.emit();
     const allDiagnostics = getPreEmitDiagnostics(program).concat(emitResult.diagnostics);
 
