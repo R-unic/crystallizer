@@ -15,5 +15,4 @@ A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with a
   - watch mode
 - codegen:
   - imports/exports
-  - instanceof (value.class < TypeToCheck)
-  - blocks with arguments
+  - support Promise.all()

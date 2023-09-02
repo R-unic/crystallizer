@@ -227,10 +227,14 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.BinaryExpression: {
         const binary = <BinaryExpression>node;
+        const operatorText = binary.operatorToken.getText(this.sourceNode);
         this.walk(binary.left);
 
-        const operatorText = binary.operatorToken.getText(this.sourceNode);
-        this.append(` ${this.getMappedBinaryOperator(operatorText)} `);
+        if (operatorText === "instanceof")
+          this.append(".class <= ");
+        else
+          this.append(` ${this.getMappedBinaryOperator(operatorText)} `);
+
         this.walk(binary.right);
         break;
       }
@@ -496,13 +500,10 @@ export default class CodeGenerator extends StringBuilder {
           this.newLine();
         }
 
-        for (const member of declaration.members) {
+        for (const member of declaration.members)
           this.walk(member);
-          if (Util.isNotLast(member, declaration.members))
-            this.newLine();
-        }
 
-        if (this.meta.publicClassProperties.length > 0) {}
+        if (this.meta.publicClassProperties.length > 0)
           this.newLine();
 
         for (const publicProperty of this.meta.publicClassProperties) {
