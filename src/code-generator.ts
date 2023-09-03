@@ -321,17 +321,24 @@ export default class CodeGenerator extends StringBuilder {
 
         let blockName: Identifier | undefined;
         if (callArguments.length > 0) {
-          let isArrowFunction = false;
+          let providedArrowFunction = false;
+          let providedBlock = false;
 
           this.append("(");
           for (const arg of callArguments)
-            if (arg.kind === SyntaxKind.Identifier && this.meta.allFunctionIdentifiers.includes((<Identifier>arg).text))
+            if (arg.kind === SyntaxKind.Identifier && this.meta.allFunctionIdentifiers.includes((<Identifier>arg).text)) {
+              if (providedBlock || providedArrowFunction)
+                this.error(arg, "Functions may only have one function parameter.", "MultipleFunctionsPassed");
+
               blockName = <Identifier>arg;
-            else if (arg.kind === SyntaxKind.ArrowFunction) {
-              isArrowFunction = true;
+              providedBlock = true;
+            } else if (arg.kind === SyntaxKind.ArrowFunction) {
+              if (providedBlock || providedArrowFunction)
+                this.error(arg, "Functions may only have one function parameter.", "MultipleFunctionsPassed");
+
+              providedArrowFunction = true;
               this.popLastPart();
               this.walk(arg);
-              break;
             } else {
               this.walk(arg);
               if (Util.isNotLast(arg, callArguments))
@@ -341,7 +348,7 @@ export default class CodeGenerator extends StringBuilder {
           if (blockName)
             this.popLastPart(); // remove extra comma
 
-          if (!isArrowFunction)
+          if (!providedArrowFunction)
             this.append(")");
         }
 
