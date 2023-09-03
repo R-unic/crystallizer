@@ -48,6 +48,7 @@ import {
   LabeledStatement,
   ArrowFunction,
   ImportDeclaration,
+  ConditionalExpression,
 } from "typescript";
 import { rmSync } from "fs";
 import { platform } from "os";
@@ -237,6 +238,15 @@ export default class CodeGenerator extends StringBuilder {
           this.append(` ${this.getMappedBinaryOperator(operatorText)} `);
 
         this.walk(binary.right);
+        break;
+      }
+      case SyntaxKind.ConditionalExpression: {
+        const ternary = <ConditionalExpression>node;
+        this.walk(ternary.condition);
+        this.append(" ? ");
+        this.walk(ternary.whenTrue);
+        this.append(" : ");
+        this.walk(ternary.whenFalse);
         break;
       }
       case SyntaxKind.PrefixUnaryExpression: {
