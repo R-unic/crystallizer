@@ -304,6 +304,9 @@ export default class CodeGenerator extends StringBuilder {
         let callArguments: NodeArray<Expression> | Expression[] = call.arguments;
         if (call.expression.kind === SyntaxKind.Identifier) {
           const functionName = (<Identifier>call.expression).text;
+          if (functionName[0] !== functionName[0].toLowerCase())
+            this.error(call.expression, "Function names cannot begin with capital letters.", "FunctionBeganWithCapital");
+
           if (this.meta.inGlobalScope && this.meta.asyncFunctionIdentifiers.includes(functionName))
             this.append("await ");
 
@@ -409,6 +412,9 @@ export default class CodeGenerator extends StringBuilder {
         const declaration = <FunctionDeclaration>node;
         if (!declaration.name)
           return this.error(declaration, "Anonymous functions not supported yet.", "UnsupportedAnonymousFunctions");
+
+        if (declaration.name.text[0] !== declaration.name.text[0].toLowerCase())
+          this.error(declaration.name, "Function names cannot begin with capital letters.", "FunctionBeganWithCapital");
 
         this.meta.allFunctionIdentifiers.push(declaration.name.text);
         this.appendMethod(
