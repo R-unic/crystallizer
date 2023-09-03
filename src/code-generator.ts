@@ -47,6 +47,7 @@ import {
   AwaitExpression,
   LabeledStatement,
   ArrowFunction,
+  ImportDeclaration,
 } from "typescript";
 import { rmSync } from "fs";
 import { platform } from "os";
@@ -305,7 +306,7 @@ export default class CodeGenerator extends StringBuilder {
         if (call.expression.kind === SyntaxKind.Identifier) {
           const functionName = (<Identifier>call.expression).text;
           if (functionName[0] !== functionName[0].toLowerCase())
-            this.error(call.expression, "Function names cannot begin with capital letters.", "FunctionBeganWithCapital");
+            return this.error(call.expression, "Function names cannot begin with capital letters.", "FunctionBeganWithCapital");
 
           if (this.meta.inGlobalScope && this.meta.asyncFunctionIdentifiers.includes(functionName))
             this.append("await ");
@@ -384,6 +385,7 @@ export default class CodeGenerator extends StringBuilder {
         break;
       }
 
+      // FUNCTION STUFF STATEMENTS
       case SyntaxKind.ReturnStatement: {
         const statement = <ReturnStatement>node;
         this.pushFlag("Returned");
@@ -421,7 +423,7 @@ export default class CodeGenerator extends StringBuilder {
           return this.error(declaration, "Anonymous functions not supported yet.", "UnsupportedAnonymousFunctions");
 
         if (declaration.name.text[0] !== declaration.name.text[0].toLowerCase())
-          this.error(declaration.name, "Function names cannot begin with capital letters.", "FunctionBeganWithCapital");
+          return this.error(declaration.name, "Function names cannot begin with capital letters.", "FunctionBeganWithCapital");
 
         this.meta.allFunctionIdentifiers.push(declaration.name.text);
         this.appendMethod(
@@ -463,6 +465,8 @@ export default class CodeGenerator extends StringBuilder {
         this.append("end");
         break;
       }
+
+      // CLASS STUFF STATEMENTS
       case SyntaxKind.Constructor: {
         const constructor = <ConstructorDeclaration>node;
         this.appendMethod(
@@ -482,6 +486,10 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.ClassDeclaration: {
         const declaration = <ClassDeclaration>node;
+        const isExported = this.consumeFlag("Export");
+        if (!isExported)
+          this.append("private ");
+
         this.append("class ");
         if (declaration.name)
           this.walk(declaration.name);
@@ -593,6 +601,15 @@ export default class CodeGenerator extends StringBuilder {
         break;
       }
 
+      case SyntaxKind.ImportDeclaration: {
+        const imports = <ImportDeclaration>node;
+        this.append("require ");
+        this.walk(imports.moduleSpecifier);
+        this.newLine();
+        break;
+      }
+
+      // CONDITIONAL/LOOP STATEMENTS
       case SyntaxKind.ForOfStatement: {
         const forOfStatement = <ForOfStatement>node;
         this.walk(forOfStatement.expression);
@@ -832,7 +849,13 @@ export default class CodeGenerator extends StringBuilder {
   ) {
 
     this.walkModifierList(modifiers?.values(), false);
-    this.append("def ")
+    const modifierKinds = modifiers?.map(mod => mod.kind);
+
+    const isExported = this.consumeFlag("Export");
+    if (!isExported && !modifierKinds?.includes(SyntaxKind.PrivateKeyword) && !modifierKinds?.includes(SyntaxKind.StaticKeyword) && !modifierKinds?.includes(SyntaxKind.PublicKeyword))
+      this.append("private ");
+
+    this.append("def ");
 
     const isStatic = modifiers?.map(mod => mod.kind)?.includes(SyntaxKind.StaticKeyword);
     if (isStatic)
@@ -963,6 +986,10 @@ export default class CodeGenerator extends StringBuilder {
         }
         case SyntaxKind.AsyncKeyword: {
           this.pushFlag("Async");
+          break;
+        }
+        case SyntaxKind.ExportKeyword: {
+          this.pushFlag("Export");
           break;
         }
         case SyntaxKind.DeclareKeyword: {
