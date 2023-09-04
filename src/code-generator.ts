@@ -50,6 +50,7 @@ import {
   ConditionalExpression,
   BindingName,
   SpreadElement,
+  FunctionTypeNode,
 } from "typescript";
 import { rmSync } from "fs";
 import { platform } from "os";
@@ -73,6 +74,7 @@ interface MetaValues extends Record<string, unknown> {
   currentHashKeyType?: string;
   currentHashValueType?: string;
   currentlyDeclaring?: string;
+  blockParameter?: string;
   publicClassProperties: ParameterDeclaration[];
   allFunctionIdentifiers: string[];
   asyncFunctionIdentifiers: string[];
@@ -85,6 +87,7 @@ const DEFAULT_META: MetaValues = {
   currentHashKeyType: undefined,
   currentHashValueType: undefined,
   currentlyDeclaring: undefined,
+  blockParameter: undefined,
   publicClassProperties: [],
   allFunctionIdentifiers: [], // TODO: make this (and the below field) a property of the Crystallizer class instead to track function identifiers across all files
   asyncFunctionIdentifiers: [],
@@ -324,20 +327,26 @@ export default class CodeGenerator extends StringBuilder {
         const call = <CallExpression>node;
 
         let callArguments: NodeArray<Expression> | Expression[] = call.arguments;
+        let blockParameter = false;
         if (call.expression.kind === SyntaxKind.Identifier) {
           const functionName = (<Identifier>call.expression).text;
           if (functionName[0] !== functionName[0].toLowerCase())
-            return this.error(call.expression, "Function names cannot begin with capital letters.", "FunctionBeganWithCapital");
+          return this.error(call.expression, "Function names cannot begin with capital letters.", "FunctionBeganWithCapital");
 
           if (this.meta.inGlobalScope && this.meta.asyncFunctionIdentifiers.includes(functionName))
-            this.append("await ");
+          this.append("await ");
 
           if (SNAKE_CASE_GLOBALS.includes((<Identifier>call.expression).text)) {
             this.append(Util.toSnakeCase(functionName));
             if (functionName === "setTimeout" || functionName === "setInterval")
-              callArguments = callArguments.map((_, index, array) => array[array.length - 1 - index]);
+            callArguments = callArguments.map((_, index, array) => array[array.length - 1 - index]);
           } else
             this.walk(call.expression);
+
+          if (this.meta.blockParameter === functionName) {
+            this.append(".call");
+            blockParameter = true;
+          }
         } else
           this.walk(call.expression);
 
@@ -350,13 +359,13 @@ export default class CodeGenerator extends StringBuilder {
           for (const arg of callArguments)
             if (arg.kind === SyntaxKind.Identifier && this.meta.allFunctionIdentifiers.includes((<Identifier>arg).text)) {
               if (providedBlock || providedArrowFunction)
-                this.error(arg, "Functions may only have one function parameter.", "MultipleFunctionsPassed");
+                this.error(arg, "Functions may only have one function argument.", "MultipleFunctionsPassed");
 
               blockName = <Identifier>arg;
               providedBlock = true;
             } else if (arg.kind === SyntaxKind.ArrowFunction) {
               if (providedBlock || providedArrowFunction)
-                this.error(arg, "Functions may only have one function parameter.", "MultipleFunctionsPassed");
+                this.error(arg, "Functions may only have one function argument.", "MultipleFunctionsPassed");
 
               providedArrowFunction = true;
               this.popLastPart();
@@ -372,7 +381,9 @@ export default class CodeGenerator extends StringBuilder {
 
           if (!providedArrowFunction)
             this.append(")");
-        }
+        } else
+          if (blockParameter)
+            this.append("(nil)");
 
         if (blockName) {
           this.append(" { ");
@@ -431,6 +442,14 @@ export default class CodeGenerator extends StringBuilder {
         if (param.dotDotDotToken) {
           this.meta.spreadParameter = true;
           this.append("*");
+        }
+
+        if (param.type?.kind === SyntaxKind.FunctionType) {
+          if (this.meta.blockParameter)
+            return this.error(param, "Cannot define more than one function parameter.", "MultipleFunctionParameters");
+
+          this.append("&");
+          this.meta.blockParameter = param.name.getText(this.sourceNode);
         }
 
         this.walk(param.name);
@@ -1046,19 +1065,6 @@ export default class CodeGenerator extends StringBuilder {
 
   private walkType(type: TypeNode): void {
     switch(type.kind) {
-      case SyntaxKind.ArrayType: {
-        const arrayType = <ArrayTypeNode>type;
-        if (this.meta.spreadParameter)
-          this.walkType(arrayType.elementType);
-        else {
-          this.append("TsArray(");
-          this.walkType(arrayType.elementType);
-          this.append(")");
-          this.meta.currentArrayType = this.getMappedType(arrayType.elementType.getText(this.sourceNode));
-        }
-
-        break;
-      }
       case SyntaxKind.NumberKeyword: {
         this.append("Num");
         break;
@@ -1107,6 +1113,40 @@ export default class CodeGenerator extends StringBuilder {
         // remove any extra annotation text
         if (this.peekLastPart() === " : ")
           this.popLastPart();
+        break;
+      }
+
+      case SyntaxKind.ArrayType: {
+        const arrayType = <ArrayTypeNode>type;
+        if (this.meta.spreadParameter)
+          this.walkType(arrayType.elementType);
+        else {
+          this.append("TsArray(");
+          this.walkType(arrayType.elementType);
+          this.append(")");
+          this.meta.currentArrayType = this.getMappedType(arrayType.elementType.getText(this.sourceNode));
+        }
+
+        break;
+      }
+
+      case SyntaxKind.FunctionType: {
+        // TODO: type parameters
+        const functionType = <FunctionTypeNode>type;
+        if (functionType.parameters.length > 0)
+          for (const param of functionType.parameters) {
+            if (!param.type)
+              return this.error(param, "Function type parameter must have a type annotation.", "UnannotatedFunctionTypeParameter");
+
+            this.walkType(param.type);
+            if (Util.isNotLast(param, functionType.parameters))
+              this.append(", ");
+          }
+        else
+          this.append("Nil");
+
+        this.append(" -> ");
+        this.walkType(functionType.type);
         break;
       }
 

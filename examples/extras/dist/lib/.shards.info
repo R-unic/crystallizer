@@ -1,0 +1,12 @@
+---
+version: 1.0
+shards:
+  await_async:
+    git: https://github.com/r-unic/await_async.git
+    version: 0.1.0+git.commit.a6316fd78ff1c64f25e6c656622d975ffc960e18
+  future:
+    git: https://github.com/crystal-community/future.cr.git
+    version: 1.0.0
+  schedule:
+    git: https://github.com/hugoabonizio/schedule.cr.git
+    version: 0.2.2
