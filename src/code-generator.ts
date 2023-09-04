@@ -49,6 +49,7 @@ import {
   ImportDeclaration,
   ConditionalExpression,
   BindingName,
+  SpreadElement,
 } from "typescript";
 import { rmSync } from "fs";
 import { platform } from "os";
@@ -76,6 +77,7 @@ interface MetaValues extends Record<string, unknown> {
   allFunctionIdentifiers: string[];
   asyncFunctionIdentifiers: string[];
   inGlobalScope: boolean;
+  spreadParameter: boolean;
 }
 
 const DEFAULT_META: MetaValues = {
@@ -86,7 +88,8 @@ const DEFAULT_META: MetaValues = {
   publicClassProperties: [],
   allFunctionIdentifiers: [], // TODO: make this (and the below field) a property of the Crystallizer class instead to track function identifiers across all files
   asyncFunctionIdentifiers: [],
-  inGlobalScope: true
+  inGlobalScope: true,
+  spreadParameter: false
 };
 
 interface CodeGenOptions {
@@ -402,6 +405,12 @@ export default class CodeGenerator extends StringBuilder {
         this.walk(awaitExpression.expression);
         break;
       }
+      case SyntaxKind.SpreadElement: {
+        const spread = <SpreadElement>node;
+        this.append("*");
+        this.walk(spread.expression);
+        break;
+      }
 
       // FUNCTION STUFF STATEMENTS
       case SyntaxKind.ReturnStatement: {
@@ -419,8 +428,12 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.Parameter: {
         const param = <ParameterDeclaration>node;
-        this.walk(param.name);
+        if (param.dotDotDotToken) {
+          this.meta.spreadParameter = true;
+          this.append("*");
+        }
 
+        this.walk(param.name);
         if (param.type) {
           this.append(" : ");
           this.walkType(param.type);
@@ -433,6 +446,7 @@ export default class CodeGenerator extends StringBuilder {
           this.walk(param.initializer);
         }
 
+        this.resetMeta("spreadParameter");
         break;
       }
       case SyntaxKind.FunctionDeclaration: {
@@ -458,7 +472,6 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.ArrowFunction: {
         const arrowFunction = <ArrowFunction>node;
-        const codegen = this;
 
         if (this.meta.currentlyDeclaring) {
           this.append("def ");
@@ -479,11 +492,11 @@ export default class CodeGenerator extends StringBuilder {
         }
 
         this.pushIndentation();
-          this.newLine();
-          this.walk(arrowFunction.body);
-          this.popIndentation();
-          this.newLine();
-          this.append("end");
+        this.newLine();
+        this.walk(arrowFunction.body);
+        this.popIndentation();
+        this.newLine();
+        this.append("end");
         break;
       }
 
@@ -860,13 +873,9 @@ export default class CodeGenerator extends StringBuilder {
     }
   }
 
-  private appendParameters(fn: { name: BindingName; parameters: NodeArray<ParameterDeclaration>; }): void {
+  private appendParameters(fn: { parameters: NodeArray<ParameterDeclaration>; }): void {
     for (const parameter of fn.parameters) {
-      this.walk(parameter.name);
-      if (parameter.type) {
-        this.append(" : ");
-        this.walkType(parameter.type);
-      }
+      this.walk(parameter)
       if (Util.isNotLast(parameter, fn.parameters))
         this.append(", ");
     }
@@ -1039,10 +1048,15 @@ export default class CodeGenerator extends StringBuilder {
     switch(type.kind) {
       case SyntaxKind.ArrayType: {
         const arrayType = <ArrayTypeNode>type;
-        this.append("TsArray(");
-        this.walkType(arrayType.elementType);
-        this.append(")");
-        this.meta.currentArrayType = this.getMappedType(arrayType.elementType.getText(this.sourceNode));
+        if (this.meta.spreadParameter)
+          this.walkType(arrayType.elementType);
+        else {
+          this.append("TsArray(");
+          this.walkType(arrayType.elementType);
+          this.append(")");
+          this.meta.currentArrayType = this.getMappedType(arrayType.elementType.getText(this.sourceNode));
+        }
+
         break;
       }
       case SyntaxKind.NumberKeyword: {

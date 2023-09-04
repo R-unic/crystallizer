@@ -14,8 +14,9 @@ A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with a
 - cli:
   - watch mode
 - codegen:
-  - advanced type generics (T extends, ternary operator, initializer type)
+  - advanced type generics (T extends, ternary operator, initializers)
   - rest parameters
+  - destructuring
   - function types
   - try..catch
   - for..in

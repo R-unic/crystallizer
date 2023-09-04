@@ -1,3 +1,3 @@
-import { sayHello } from "./say-hello";
+import { say } from "./say";
 
-sayHello();
+say("hello", "world");

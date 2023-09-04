@@ -1,4 +1,4 @@
 require "./runtime_lib/*"
 
-require "./say-hello"
-sayHello
+require "./say"
+say("hello", "world")
