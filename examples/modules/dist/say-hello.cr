@@ -1,6 +1,5 @@
 require "./runtime_lib/*"
 
-def sayHello : Nil
+def sayHello
     puts("Hello, world!")
-    return
 end

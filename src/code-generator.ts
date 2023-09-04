@@ -45,10 +45,10 @@ import {
   ParenthesizedExpression,
   ForOfStatement,
   AwaitExpression,
-  LabeledStatement,
   ArrowFunction,
   ImportDeclaration,
   ConditionalExpression,
+  BindingName,
 } from "typescript";
 import { rmSync } from "fs";
 import { platform } from "os";
@@ -71,6 +71,7 @@ interface MetaValues extends Record<string, unknown> {
   currentArrayType?: string;
   currentHashKeyType?: string;
   currentHashValueType?: string;
+  currentlyDeclaring?: string;
   publicClassProperties: ParameterDeclaration[];
   allFunctionIdentifiers: string[];
   asyncFunctionIdentifiers: string[];
@@ -81,6 +82,7 @@ const DEFAULT_META: MetaValues = {
   currentArrayType: undefined,
   currentHashKeyType: undefined,
   currentHashValueType: undefined,
+  currentlyDeclaring: undefined,
   publicClassProperties: [],
   allFunctionIdentifiers: [], // TODO: make this (and the below field) a property of the Crystallizer class instead to track function identifiers across all files
   asyncFunctionIdentifiers: [],
@@ -163,17 +165,23 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.VariableDeclaration: {
         const declaration = <VariableDeclaration>node;
-        this.walk(declaration.name);
+        this.meta.currentlyDeclaring = declaration.name.getText(this.sourceNode);
 
-        if (declaration.type) {
-          this.append(" : ");
-          this.walkType(declaration.type)
-        }
-        if (declaration.initializer) {
-          this.append(" = ");
+        if (declaration.initializer?.kind == SyntaxKind.ArrowFunction)
           this.walk(declaration.initializer);
+        else {
+          this.walk(declaration.name);
+          if (declaration.type) {
+            this.append(" : ");
+            this.walkType(declaration.type)
+          }
+          if (declaration.initializer) {
+            this.append(" = ");
+            this.walk(declaration.initializer);
+          }
         }
 
+        this.resetMeta("currentlyDeclaring");
         this.newLine();
         break;
       }
@@ -451,28 +459,31 @@ export default class CodeGenerator extends StringBuilder {
       case SyntaxKind.ArrowFunction: {
         const arrowFunction = <ArrowFunction>node;
         const codegen = this;
-        function appendParamNameList(arrowFunction: ArrowFunction) {
-          for (const parameter of arrowFunction.parameters) {
-            codegen.walk(parameter.name);
-            if (Util.isNotLast(parameter, arrowFunction.parameters))
-              codegen.append(", ");
+
+        if (this.meta.currentlyDeclaring) {
+          this.append("def ");
+          this.append(this.meta.currentlyDeclaring)
+          if (arrowFunction.parameters.length > 0) {
+            this.append("(");
+            this.appendParameters(arrowFunction);
+            this.append(")");
+          }
+        } else { // it's an argument
+          // TODO: disallow call expressions on arrow functions directly
+          this.append(" do");
+          if (arrowFunction.parameters.length > 0) {
+            this.append(" |");
+            this.appendParameters(arrowFunction);
+            this.append("|");
           }
         }
 
-        this.append(" do");
-        if (arrowFunction.parameters.length > 0) {
-          this.append(" |");
-          appendParamNameList(arrowFunction);
-          this.append("|");
-        }
-
-
         this.pushIndentation();
-        this.newLine();
-        this.walk(arrowFunction.body);
-        this.popIndentation();
-        this.newLine();
-        this.append("end");
+          this.newLine();
+          this.walk(arrowFunction.body);
+          this.popIndentation();
+          this.newLine();
+          this.append("end");
         break;
       }
 
@@ -846,6 +857,18 @@ export default class CodeGenerator extends StringBuilder {
 
       default:
         throw new Error(`Unhandled AST syntax: ${Util.getSyntaxName(node.kind)}`);
+    }
+  }
+
+  private appendParameters(fn: { name: BindingName; parameters: NodeArray<ParameterDeclaration>; }): void {
+    for (const parameter of fn.parameters) {
+      this.walk(parameter.name);
+      if (parameter.type) {
+        this.append(" : ");
+        this.walkType(parameter.type);
+      }
+      if (Util.isNotLast(parameter, fn.parameters))
+        this.append(", ");
     }
   }
 
