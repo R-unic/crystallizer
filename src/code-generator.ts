@@ -51,6 +51,11 @@ import {
   BindingName,
   SpreadElement,
   FunctionTypeNode,
+  ArrayBindingPattern,
+  BindingElement,
+  ObjectBindingPattern,
+  TryStatement,
+  ThrowStatement,
 } from "typescript";
 import { rmSync } from "fs";
 import { platform } from "os";
@@ -80,6 +85,7 @@ interface MetaValues extends Record<string, unknown> {
   asyncFunctionIdentifiers: string[];
   inGlobalScope: boolean;
   spreadParameter: boolean;
+  bindingCount: number;
 }
 
 const DEFAULT_META: MetaValues = {
@@ -92,7 +98,8 @@ const DEFAULT_META: MetaValues = {
   allFunctionIdentifiers: [], // TODO: make this (and the below field) a property of the Crystallizer class instead to track function identifiers across all files
   asyncFunctionIdentifiers: [],
   inGlobalScope: true,
-  spreadParameter: false
+  spreadParameter: false,
+  bindingCount: 0
 };
 
 interface CodeGenOptions {
@@ -166,7 +173,7 @@ export default class CodeGenerator extends StringBuilder {
       case SyntaxKind.Identifier: {
         const { text } = <Identifier>node;
         const isTypeIdent = this.consumeFlag("TypeIdent");
-        this.append(isTypeIdent ? this.getMappedType(text) : text);
+        this.append(isTypeIdent ? this.getMappedType(text) : this.getMappedIdentifier(text));
         break;
       }
       case SyntaxKind.VariableDeclaration: {
@@ -422,6 +429,38 @@ export default class CodeGenerator extends StringBuilder {
         this.walk(spread.expression);
         break;
       }
+      // case SyntaxKind.ArrayBindingPattern: {
+      //   const bindingPattern = <ArrayBindingPattern>node;
+      //   this.append("binding = ");
+      //   for (const element of bindingPattern.elements) {
+      //     this.walk(element);
+      //     this.append("[");
+      //     this.append(bindingPattern.elements.indexOf(element).toString());
+      //     this.append("]");
+      //   }
+
+      //   break;
+      // }
+      // case SyntaxKind.ObjectBindingPattern: {
+      //   const bindingPattern = <ObjectBindingPattern>node;
+      //   for (const element of bindingPattern.elements) {
+      //     this.walk(element);
+      //     this.append(".");
+      //     this.walk(element.propertyName!);
+      //   }
+
+      //   break;
+      // }
+      // case SyntaxKind.BindingElement: {
+      //   const binding = <BindingElement>node;
+      //   if (binding.initializer) {
+      //     this.walk(binding.name);
+      //     this.append(" = ");
+      //     this.walk(binding.initializer);
+      //   }
+
+      //   break;
+      // }
 
       // FUNCTION STUFF STATEMENTS
       case SyntaxKind.ReturnStatement: {
@@ -768,7 +807,46 @@ export default class CodeGenerator extends StringBuilder {
 
         this.newLine();
         this.append("end");
+        break;
+      }
+      case SyntaxKind.TryStatement: {
+        const tryStatement = <TryStatement>node;
+
+        this.append("begin");
+        this.walk(tryStatement.tryBlock);
+        this.popLastPart();
+        this.popIndentation();
         this.newLine();
+        this.append("rescue ");
+
+        if (tryStatement.catchClause) {
+          const variable = tryStatement.catchClause.variableDeclaration;
+          if (variable)
+            this.walk(variable);
+          else
+            this.append("ex : Exception");
+
+          this.popLastPart();
+          this.walk(tryStatement.catchClause.block);
+          this.popIndentation();
+          this.newLine();
+        }
+
+        if (tryStatement.finallyBlock) {
+          this.append("ensure")
+          this.walk(tryStatement.finallyBlock);
+          this.popLastPart();
+          this.popIndentation();
+          this.newLine();
+        }
+
+        this.append("end");
+        break;
+      }
+      case SyntaxKind.ThrowStatement: {
+        const throwStatement = <ThrowStatement>node;
+        this.append("raise ");
+        this.walk(throwStatement.expression);
         break;
       }
       case SyntaxKind.ExpressionStatement: {
@@ -869,7 +947,6 @@ export default class CodeGenerator extends StringBuilder {
         for (const statement of (<Block>node).statements)
           this.walk(statement);
 
-        this.popIndentation();
         this.meta.inGlobalScope = enclosingIsInScope;
         break;
       }
@@ -1168,6 +1245,11 @@ export default class CodeGenerator extends StringBuilder {
   private pushFlag(flag: string) {
     if (this.flags.includes(flag)) return;
     this.flags.push(flag);
+  }
+
+  private getMappedIdentifier(text: string): string {
+    return text
+      .replace(/Error/, "Exception");
   }
 
   private getMappedType(text: string): string {

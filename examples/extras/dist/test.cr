@@ -1,9 +1,9 @@
 require "./runtime_lib/*"
 
-private def doSomething(&action : Nil -> Nil) : Nil
-    action.call(nil)
-    return
-end
-doSomething do
-    puts("hello!")
+begin
+    puts("6969420")
+rescue e
+    raise Exception.new("FATAL!!! error")
+ensure
+    puts("done :)")
 end

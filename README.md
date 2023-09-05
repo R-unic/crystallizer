@@ -16,7 +16,6 @@ A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with a
 - codegen:
   - advanced type generics (T extends, ternary operator, initializers)
   - destructuring
-  - try..catch
   - for..in
   - polyfills
   - support Promise.all()
