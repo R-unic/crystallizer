@@ -6,7 +6,7 @@
   "bin": "dist/main.js",
   "scripts": {
     "start": "node dist/main.js",
-    "build-binary": "npx pkg . -t node18-linux,node18-linux,node18-win && mkdir -p bin && mv crystallizer-linux bin/crystallizer && mv crystallizer-win.exe bin/crystallizer.exe"
+    "test": "cd runtime_lib && crystal spec -v && cd .. && mocha dist/tests"
   },
   "repository": {
     "type": "git",

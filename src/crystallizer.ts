@@ -71,6 +71,7 @@ export default class Crystallizer {
 
       rmSync(projectRuntimeLibPath, rf);
       rmSync(path.join(projectRuntimeLibPath, "lib"), rf);
+      rmSync(path.join(projectRuntimeLibPath, "spec"), rf);
       rmSync(path.join(projectRuntimeLibPath, "shard.lock"), rf);
     }
 

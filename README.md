@@ -17,7 +17,8 @@ A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with a
   - ignore advanced type generics (T extends, ternary operator, initializers)
   - destructuring
   - for..in
-  - polyfills
-  - support Promise.all()
+- polyfills:
+  - `Object`
+  - `Promise`
 - test:
   - runtime lib
