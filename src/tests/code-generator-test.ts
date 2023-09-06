@@ -7,7 +7,7 @@ import CodeGenerator from "../code-generator"
 const TAB = " ".repeat(4);
 function createTestCodeGen(sourceCode: string): CodeGenerator {
   const sourceFile = ts.createSourceFile(__filename, sourceCode, ts.ScriptTarget.ES2015);
-  return new CodeGenerator(sourceFile, { testRun: true });
+  return new CodeGenerator(sourceFile);
 }
 
 describe("CodeGenerator#generate", () => {

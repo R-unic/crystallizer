@@ -62,7 +62,7 @@ class TsArray(T)
     @cache.first
   end
 
-  def first? : T
+  def first? : T?
     @cache.first?
   end
 
@@ -70,7 +70,7 @@ class TsArray(T)
     @cache.last
   end
 
-  def last? : T
+  def last? : T?
     @cache.last?
   end
 
@@ -106,21 +106,21 @@ class TsArray(T)
 
   def every(&predicate : T, UInt32 -> Bool) : TsArray(T)
     matches = true
-    for_each do |v, i|
+    forEach do |v, i|
       matches &&= predicate.call(v, i)
     end
     matches
   end
 
   def some(&predicate : T, UInt32 -> Bool) : TsArray(T)
-    for_each do |v, i|
+    forEach do |v, i|
       return true if predicate.call(v, i)
     end
   end
 
   def filter(&predicate : T, UInt32 -> Bool) : TsArray(T)
     filtered = TsArray(T).new
-    for_each do |v, i|
+    forEach do |v, i|
       filtered << v if predicate.call(v, i)
     end
     filtered
@@ -128,7 +128,7 @@ class TsArray(T)
 
   def map(&transform : T, UInt32 -> U) : TsArray(U) forall U
     mapped = TsArray(U).new
-    for_each do |v, i|
+    forEach do |v, i|
       mapped << transform.call(v, i)
     end
     mapped
@@ -151,27 +151,27 @@ class TsArray(T)
     indexOf(find(&predicate))
   end
 
-  def reduce(initial : U, &block : (U, T) -> U) : U forall U
+  def reduce(initial : U, &block : U, T -> U) : U forall U
     accumulator = initial
-    for_each do |v|
+    forEach do |v|
       accumulator = block.call(accumulator, v)
     end
     accumulator
   end
 
-  def reduce(&block : (U, T) -> U) : U forall U
-    reduce(first?, &block)
+  def reduce(&block : T, T -> T) : T
+    reduce(first, &block)
   end
 
-  def reduceRight(initial : U, &block : (U, T) -> U) : U forall U
+  def reduceRight(initial : U, &block : U, T -> U) : U forall U
     accumulator = initial
-    reverse.for_each do |v|
+    reverse.forEach do |v|
       accumulator = block.call(accumulator, v)
     end
     accumulator
   end
 
-  def reduceRight(&block : (U, T) -> U) : U forall U
-    reduceRight(last?, &block)
+  def reduceRight(&block : T, T -> T) : T
+    reduceRight(last, &block)
   end
 end

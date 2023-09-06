@@ -57,9 +57,6 @@ import {
   TryStatement,
   ThrowStatement,
 } from "typescript";
-import { rmSync } from "fs";
-import { platform } from "os";
-import { exec } from "child_process";
 import path from "path";
 
 import Util from "./utility";
@@ -74,7 +71,6 @@ const CLASS_MODIFIERS = [SyntaxKind.PublicKeyword, SyntaxKind.PrivateKeyword, Sy
 const SNAKE_CASE_GLOBALS = ["setTimeout", "setInterval"];
 const REVERSE_ARGS_GLOBAL_FUNCTIONS = ["setTimeout", "setInterval"];
 const REVERSE_ARGS_CLASS_FUNCTIONS = ["reduce", "reduceRight"];
-const TYPE_HELPER_FILENAME = "crystal.d.ts";
 
 interface MetaValues extends Record<string, unknown> {
   currentArrayType?: string;
@@ -82,6 +78,7 @@ interface MetaValues extends Record<string, unknown> {
   currentHashValueType?: string;
   currentlyDeclaring?: string;
   blockParameter?: string;
+  arrowFunctionName?: string;
   publicClassProperties: ParameterDeclaration[];
   allFunctionIdentifiers: string[];
   asyncFunctionIdentifiers: string[];
@@ -96,6 +93,7 @@ const DEFAULT_META: MetaValues = {
   currentHashValueType: undefined,
   currentlyDeclaring: undefined,
   blockParameter: undefined,
+  arrowFunctionName: undefined,
   publicClassProperties: [],
   allFunctionIdentifiers: [], // TODO: make this (and the below field) a property of the Crystallizer class instead to track function identifiers across all files
   asyncFunctionIdentifiers: [],
@@ -104,63 +102,18 @@ const DEFAULT_META: MetaValues = {
   bindingCount: 0
 };
 
-interface CodeGenOptions {
-  readonly testRun?: boolean;
-  readonly outDir?: string;
-}
-
 export default class CodeGenerator extends StringBuilder {
   private readonly flags: string[] = [];
   private readonly meta = DEFAULT_META;
 
   public constructor(
-    private readonly sourceNode: SourceFile,
-    private readonly options: CodeGenOptions,
+    private readonly sourceNode: SourceFile
   ) { super(); }
 
   public generate(): string {
-    this.handleRuntimeLib();
+    this.append(`require "./runtime_lib/*"\n\n`);
     this.walkChildren(this.sourceNode);
     return this.generated.trim();
-  }
-
-  private handleRuntimeLib(): void {
-    if (!this.options.outDir) return;
-    if (this.options.testRun) return;
-
-    const projectRuntimeLibPath = path.join(this.options.outDir, "runtime_lib");
-    if (Util.Files.isDirectory(projectRuntimeLibPath)) {
-      const rf = {
-        force: true,
-        recursive: true
-      };
-
-      rmSync(projectRuntimeLibPath, rf);
-      rmSync(path.join(projectRuntimeLibPath, "lib"), rf);
-      rmSync(path.join(projectRuntimeLibPath, "shard.lock"), rf);
-    }
-
-    Util.Files.copyDirectory(path.join(__dirname, "../runtime_lib"), projectRuntimeLibPath);
-
-    const runtimeLibShard = path.join(projectRuntimeLibPath, "shard.yml");
-    const crystalTypeHelpers = path.join(projectRuntimeLibPath, TYPE_HELPER_FILENAME)
-    Util.Files.moveFile(runtimeLibShard, path.join(this.options.outDir, "shard.yml"));
-    Util.Files.moveFile(crystalTypeHelpers, path.join(this.options.outDir, TYPE_HELPER_FILENAME));
-
-    const isWindows = platform() === "win32";
-    exec((isWindows ? "where.exe" : "which") + " shards", (error, stdout, stderr) => {
-      if (error || stderr)
-        return console.error(`Error: ${error?.message ? error.message + stderr : stderr}`);
-
-      const outParts = stdout.split("shards: ");
-      const shardsExecutable = outParts[outParts.length - 1].trim();
-      exec(`"${path.resolve(shardsExecutable)}" install`, { cwd: this.options.outDir }, (error, _, stderr) => {
-        if (error || stderr)
-          return console.error(`Error: ${error?.message ? error.message + stderr : stderr}`);
-      });
-    })
-
-    this.append(`require "./runtime_lib/*"\n\n`);
   }
 
   private walk(node: Node): void {
@@ -180,11 +133,10 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.VariableDeclaration: {
         const declaration = <VariableDeclaration>node;
-        this.meta.currentlyDeclaring = declaration.name.getText(this.sourceNode);
-
-        if (declaration.initializer?.kind == SyntaxKind.ArrowFunction)
+        if (declaration.initializer?.kind === SyntaxKind.ArrowFunction) {
+          this.meta.arrowFunctionName = declaration.name.getText(this.sourceNode);
           this.walk(declaration.initializer);
-        else {
+        } else {
           this.walk(declaration.name);
           if (declaration.type) {
             this.append(" : ");
@@ -196,7 +148,6 @@ export default class CodeGenerator extends StringBuilder {
           }
         }
 
-        this.resetMeta("currentlyDeclaring");
         this.newLine();
         break;
       }
@@ -346,7 +297,8 @@ export default class CodeGenerator extends StringBuilder {
         let callArguments: NodeArray<Expression> | Expression[] = call.arguments;
         let blockParameter = false;
         if ([SyntaxKind.Identifier, SyntaxKind.PropertyAccessExpression].includes(call.expression.kind)) {
-          const functionName = call.expression.kind === SyntaxKind.PropertyAccessExpression
+          const isPropertyAccess = call.expression.kind === SyntaxKind.PropertyAccessExpression;
+          const functionName = isPropertyAccess
             ? (<PropertyAccessExpression>call.expression).name.text
             : (<Identifier>call.expression).text;
 
@@ -356,7 +308,7 @@ export default class CodeGenerator extends StringBuilder {
           if (this.meta.inGlobalScope && this.meta.asyncFunctionIdentifiers.includes(functionName))
             this.append("await ");
 
-          if (call.expression.kind === SyntaxKind.Identifier) {
+          if (!isPropertyAccess) {
             if (REVERSE_ARGS_GLOBAL_FUNCTIONS.includes(functionName))
             callArguments = reverse(callArguments);
 
@@ -397,7 +349,21 @@ export default class CodeGenerator extends StringBuilder {
 
               providedArrowFunction = true;
               this.popLastPart();
-              this.walk(arg);
+
+              const arrowFunction = <ArrowFunction>arg;
+              this.append(" do");
+              if (arrowFunction.parameters.length > 0) {
+                this.append(" |");
+                this.appendParameters(arrowFunction);
+                this.append("|");
+              }
+
+              this.pushIndentation();
+              this.newLine();
+              this.walk(arrowFunction.body);
+              this.popIndentation();
+              this.newLine();
+              this.append("end");
             } else {
               this.walk(arg);
               if (Util.isNotLast(arg, callArguments))
@@ -536,7 +502,6 @@ export default class CodeGenerator extends StringBuilder {
         if (declaration.name.text[0] !== declaration.name.text[0].toLowerCase())
           return this.error(declaration.name, "Function names cannot begin with capital letters.", "FunctionBeganWithCapital");
 
-        this.meta.allFunctionIdentifiers.push(declaration.name.text);
         this.appendMethod(
           <Identifier>declaration.name,
           declaration.parameters,
@@ -552,22 +517,15 @@ export default class CodeGenerator extends StringBuilder {
       case SyntaxKind.ArrowFunction: {
         const arrowFunction = <ArrowFunction>node;
 
-        if (this.meta.currentlyDeclaring) {
-          this.append("def ");
-          this.append(this.meta.currentlyDeclaring)
-          if (arrowFunction.parameters.length > 0) {
-            this.append("(");
-            this.appendParameters(arrowFunction);
-            this.append(")");
-          }
-        } else { // it's an argument
-          // TODO: disallow call expressions on arrow functions directly
-          this.append(" do");
-          if (arrowFunction.parameters.length > 0) {
-            this.append(" |");
-            this.appendParameters(arrowFunction);
-            this.append("|");
-          }
+        // TODO: disallow call expressions on arrow functions directly
+        this.append("def ");
+        this.append(this.meta.arrowFunctionName!);
+        this.resetMeta("arrowFunctionName");
+
+        if (arrowFunction.parameters.length > 0) {
+          this.append("(");
+          this.appendParameters(arrowFunction);
+          this.append(")");
         }
 
         this.pushIndentation();
@@ -580,6 +538,11 @@ export default class CodeGenerator extends StringBuilder {
       }
 
       // CLASS STUFF STATEMENTS
+      case SyntaxKind.InterfaceDeclaration: {
+        // gonna ignore this for now
+        // TODO: make empty class declaration
+        break;
+      }
       case SyntaxKind.Constructor: {
         const constructor = <ConstructorDeclaration>node;
         this.appendMethod(
@@ -599,9 +562,7 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.ClassDeclaration: {
         const declaration = <ClassDeclaration>node;
-        const isExported = this.consumeFlag("Export");
-        if (!isExported)
-          this.append("private ");
+        this.handleExporting();
 
         this.append("class ");
         if (declaration.name)
@@ -990,6 +951,12 @@ export default class CodeGenerator extends StringBuilder {
     }
   }
 
+  private handleExporting(): void {
+    const isExported = this.consumeFlag("Export");
+    if (!isExported)
+      this.append("private ");
+  }
+
   private appendParameters(fn: { parameters: NodeArray<ParameterDeclaration>; }): void {
     for (const parameter of fn.parameters) {
       this.walk(parameter)
@@ -1007,6 +974,7 @@ export default class CodeGenerator extends StringBuilder {
     body?: Block
   ) {
 
+    this.meta.allFunctionIdentifiers.push(typeof name === "string" ? name : name.text);
     this.walkModifierList(modifiers?.values(), false);
     const modifierKinds = modifiers?.map(mod => mod.kind);
 
