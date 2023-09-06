@@ -72,6 +72,8 @@ const UNDECLARABLE_TYPE_NAMES = ["i32", "f32", "u32", "i64", "f64", "u64"];
 const UNCASTABLE_TYPES = [SyntaxKind.UnknownKeyword, SyntaxKind.AnyKeyword];
 const CLASS_MODIFIERS = [SyntaxKind.PublicKeyword, SyntaxKind.PrivateKeyword, SyntaxKind.ProtectedKeyword, SyntaxKind.ReadonlyKeyword];
 const SNAKE_CASE_GLOBALS = ["setTimeout", "setInterval"];
+const REVERSE_ARGS_GLOBAL_FUNCTIONS = ["setTimeout", "setInterval"];
+const REVERSE_ARGS_CLASS_FUNCTIONS = ["reduce", "reduceRight"];
 const TYPE_HELPER_FILENAME = "crystal.d.ts";
 
 interface MetaValues extends Record<string, unknown> {
@@ -301,6 +303,11 @@ export default class CodeGenerator extends StringBuilder {
 
         this.walk(access.expression);
         this.append(access.expression.kind === SyntaxKind.ThisKeyword ? "" : ".");
+        if (propertyNameText === "toString") {
+          this.append("to_s");
+          break;
+        }
+
         this.walk(access.name);
         break;
       }
@@ -333,22 +340,36 @@ export default class CodeGenerator extends StringBuilder {
       case SyntaxKind.CallExpression: {
         const call = <CallExpression>node;
 
+        const reverse = <T extends Node>(array: NodeArray<T>): T[] =>
+          array.map((_, index, array) => array[array.length - 1 - index]);
+
         let callArguments: NodeArray<Expression> | Expression[] = call.arguments;
         let blockParameter = false;
-        if (call.expression.kind === SyntaxKind.Identifier) {
-          const functionName = (<Identifier>call.expression).text;
+        if ([SyntaxKind.Identifier, SyntaxKind.PropertyAccessExpression].includes(call.expression.kind)) {
+          const functionName = call.expression.kind === SyntaxKind.PropertyAccessExpression
+            ? (<PropertyAccessExpression>call.expression).name.text
+            : (<Identifier>call.expression).text;
+
           if (functionName[0] !== functionName[0].toLowerCase())
-          return this.error(call.expression, "Function names cannot begin with capital letters.", "FunctionBeganWithCapital");
+            return this.error(call.expression, "Function names cannot begin with capital letters.", "FunctionBeganWithCapital");
 
           if (this.meta.inGlobalScope && this.meta.asyncFunctionIdentifiers.includes(functionName))
-          this.append("await ");
+            this.append("await ");
 
-          if (SNAKE_CASE_GLOBALS.includes((<Identifier>call.expression).text)) {
-            this.append(Util.toSnakeCase(functionName));
-            if (functionName === "setTimeout" || functionName === "setInterval")
-            callArguments = callArguments.map((_, index, array) => array[array.length - 1 - index]);
-          } else
+          if (call.expression.kind === SyntaxKind.Identifier) {
+            if (REVERSE_ARGS_GLOBAL_FUNCTIONS.includes(functionName))
+            callArguments = reverse(callArguments);
+
+            if (SNAKE_CASE_GLOBALS.includes(functionName))
+              this.append(Util.toSnakeCase(functionName));
+            else
+              this.walk(call.expression);
+          } else {
+            if (REVERSE_ARGS_CLASS_FUNCTIONS.includes(functionName))
+              callArguments = reverse(callArguments);
+
             this.walk(call.expression);
+          }
 
           if (this.meta.blockParameter === functionName) {
             this.append(".call");
@@ -705,7 +726,7 @@ export default class CodeGenerator extends StringBuilder {
       case SyntaxKind.ForOfStatement: {
         const forOfStatement = <ForOfStatement>node;
         this.walk(forOfStatement.expression);
-        this.append(".for_each do |");
+        this.append(".forEach do |");
 
         const declarationList = <VariableDeclarationList>forOfStatement.initializer;
         this.walk(declarationList.declarations[0].name);
@@ -1144,6 +1165,10 @@ export default class CodeGenerator extends StringBuilder {
     switch(type.kind) {
       case SyntaxKind.NumberKeyword: {
         this.append("Num");
+        break;
+      }
+      case SyntaxKind.BigIntKeyword: {
+        this.append("BigInt");
         break;
       }
       case SyntaxKind.StringKeyword: {

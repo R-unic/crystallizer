@@ -34,11 +34,13 @@ export default class CLI {
     const sourceFiles: ts.SourceFile[] = [];
     for (const fileName of fileNames) {
       const filePath = path.join(this.compilerOptions.rootDir!, fileName);
-      if (Util.Files.isDirectory(filePath)) {
-        const childFileNames = readdirSync(filePath);
-        sourceFiles.push(...childFileNames.map(fileName => this.createSourceFile(path.join(filePath, fileName))));
-      } else
-        sourceFiles.push(this.createSourceFile(filePath));
+      if (filePath.endsWith(".ts") && !filePath.endsWith(".d.ts")) {
+        if (Util.Files.isDirectory(filePath)) {
+          const childFileNames = readdirSync(filePath);
+          sourceFiles.push(...childFileNames.map(fileName => this.createSourceFile(path.join(filePath, fileName))));
+        } else
+          sourceFiles.push(this.createSourceFile(filePath));
+      }
     }
     return sourceFiles;
   }

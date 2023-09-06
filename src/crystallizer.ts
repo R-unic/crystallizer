@@ -39,7 +39,6 @@ export default class Crystallizer {
       .replace(".ts", ".cr");
 
     // no declarations
-    if (outPath.endsWith(".d.cr")) return;
     console.log(compiledCode);
     writeFileSync(path.join(this.projectDir, outPath), compiledCode);
   }
