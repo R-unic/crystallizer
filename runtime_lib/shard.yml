@@ -7,6 +7,10 @@ authors:
 crystal: ">= 1.8.2"
 license: MIT
 
+targets:
+  runtime_lib:
+    main: main.cr
+
 dependencies:
   await_async:
     github: R-unic/await_async

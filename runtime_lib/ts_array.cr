@@ -16,8 +16,8 @@ class TsArray(T)
     end
   end
 
-  def length : UInt32
-    @cache.size.to_u32
+  def length : Int
+    @cache.size
   end
 
   def includes(value : T) : Bool
@@ -25,7 +25,7 @@ class TsArray(T)
   end
 
 
-  def push(*values : T) : UInt32
+  def push(*values : T) : Int
     index = length
     @cache.push(*values)
     index
@@ -39,7 +39,7 @@ class TsArray(T)
     @cache.shift?
   end
 
-  def unshift(*values : T) : UInt32
+  def unshift(*values : T) : Int
     values.each do |value|
       @cache.insert(0, value)
     end
@@ -50,11 +50,11 @@ class TsArray(T)
     @cache.join(separator)
   end
 
-  def indexOf(value : T, from_index : Int) : UInt32?
+  def indexOf(value : T, from_index : Int) : Int?
     @cache.index(value, from_index)
   end
 
-  def lastIndexOf(value : T, from_index : Int) : UInt32?
+  def lastIndexOf(value : T, from_index : Int) : Int?
     @cache.rindex(value, from_index)
   end
 
@@ -104,7 +104,7 @@ class TsArray(T)
     result
   end
 
-  def every(&predicate : T, UInt32 -> Bool) : TsArray(T)
+  def every(&predicate : T, Int32 -> Bool) : TsArray(T)
     matches = true
     forEach do |v, i|
       matches &&= predicate.call(v, i)
@@ -112,13 +112,13 @@ class TsArray(T)
     matches
   end
 
-  def some(&predicate : T, UInt32 -> Bool) : TsArray(T)
+  def some(&predicate : T, Int32 -> Bool) : TsArray(T)
     forEach do |v, i|
       return true if predicate.call(v, i)
     end
   end
 
-  def filter(&predicate : T, UInt32 -> Bool) : TsArray(T)
+  def filter(&predicate : T, Int32 -> Bool) : TsArray(T)
     filtered = TsArray(T).new
     forEach do |v, i|
       filtered << v if predicate.call(v, i)
@@ -126,19 +126,19 @@ class TsArray(T)
     filtered
   end
 
-  def map(&transform : T, UInt32 -> U) : TsArray(U) forall U
+  def map(&transform : T, Int32 -> U) : TsArray(U) forall U
     mapped = TsArray(U).new
     forEach do |v, i|
-      mapped << transform.call(v, i)
+      mapped.push(transform.call(v, i))
     end
     mapped
   end
 
-  def sort(&sorter : T, T -> U) : UInt32 forall U
+  def sort(&sorter : T, T -> U) : TsArray(U) forall U
     TsArray(T).new(@cache.sort &sorter)
   end
 
-  def find(&predicate : T, UInt32 -> Bool) : T?
+  def find(&predicate : T, Int32 -> Bool) : T?
     filter(&predicate).first?
   end
 
@@ -147,7 +147,7 @@ class TsArray(T)
     self
   end
 
-  def findIndex(&predicate : T, UInt32 -> Bool) : Int?
+  def findIndex(&predicate : T, Int32 -> Bool) : Int?
     indexOf(find(&predicate))
   end
 
