@@ -107,11 +107,14 @@ export default class CodeGenerator extends StringBuilder {
   private readonly meta = DEFAULT_META;
 
   public constructor(
-    private readonly sourceNode: SourceFile
+    private readonly sourceNode: SourceFile,
+    private readonly testing = false
   ) { super(); }
 
   public generate(): string {
-    this.append(`require "./runtime_lib/*"\n\n`);
+    if (!this.testing)
+      this.append(`require "./runtime_lib/*"\n\n`);
+
     this.walkChildren(this.sourceNode);
     return this.generated.trim();
   }
@@ -511,7 +514,6 @@ export default class CodeGenerator extends StringBuilder {
           declaration.body
         );
 
-        this.newLine();
         break;
       }
       case SyntaxKind.ArrowFunction: {
@@ -1053,8 +1055,10 @@ export default class CodeGenerator extends StringBuilder {
       }
     }
 
+    this.popIndentation();
     this.newLine();
     this.append("end");
+    this.newLine();
   }
 
   private appendTypeCastMethod(type: TypeNode) {
