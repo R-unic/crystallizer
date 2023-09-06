@@ -20,5 +20,3 @@ A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with a
 - polyfills:
   - `Object`
   - `Promise`
-- test:
-  - runtime lib

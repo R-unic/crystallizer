@@ -104,7 +104,7 @@ class TsArray(T)
     result
   end
 
-  def every(&predicate : T, Int32 -> Bool) : TsArray(T)
+  def every(&predicate : T, Int32 -> Bool) : Bool
     matches = true
     forEach do |v, i|
       matches &&= predicate.call(v, i)
@@ -112,16 +112,17 @@ class TsArray(T)
     matches
   end
 
-  def some(&predicate : T, Int32 -> Bool) : TsArray(T)
+  def some(&predicate : T, Int32 -> Bool) : Bool
     forEach do |v, i|
       return true if predicate.call(v, i)
     end
+    false
   end
 
   def filter(&predicate : T, Int32 -> Bool) : TsArray(T)
     filtered = TsArray(T).new
     forEach do |v, i|
-      filtered << v if predicate.call(v, i)
+      filtered.push(v) if predicate.call(v, i)
     end
     filtered
   end
@@ -135,7 +136,7 @@ class TsArray(T)
   end
 
   def sort(&sorter : T, T -> U) : TsArray(U) forall U
-    TsArray(T).new(@cache.sort &sorter)
+    TsArray(U).new(@cache.sort &sorter)
   end
 
   def find(&predicate : T, Int32 -> Bool) : T?
