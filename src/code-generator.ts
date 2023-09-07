@@ -94,7 +94,7 @@ const DEFAULT_META: MetaValues = {
   blockParameter: undefined,
   arrowFunctionName: undefined,
   publicClassProperties: [],
-  allFunctionIdentifiers: [], // TODO: make this (and the below field) a property of the Crystallizer class instead to track function identifiers across all files
+  allFunctionIdentifiers: [...REVERSE_ARGS_GLOBAL_FUNCTIONS, "parseInt", "parseFloat"], // TODO: make this (and the below field) a property of the Crystallizer class instead to track function identifiers across all files, import these in
   asyncFunctionIdentifiers: [],
   inGlobalScope: true,
   spreadParameter: false,
@@ -389,14 +389,13 @@ export default class CodeGenerator extends StringBuilder {
       case SyntaxKind.ReturnStatement: {
         const statement = <ReturnStatement>node;
         this.pushFlag("Returned");
-
         this.append("return");
+
         if (statement.expression) {
           this.append(" ");
           this.walk(statement.expression);
         }
 
-        this.newLine();
         break;
       }
       case SyntaxKind.Parameter: {
@@ -463,10 +462,16 @@ export default class CodeGenerator extends StringBuilder {
           this.append(")");
         }
 
-        this.pushIndentation();
-        this.newLine();
+        const bodyIsBlock = arrowFunction.body.kind === SyntaxKind.Block;
+        if (!bodyIsBlock) {
+          this.pushIndentation();
+          this.newLine();
+        }
+
         this.walk(arrowFunction.body);
-        this.popIndentation();
+        if (!bodyIsBlock)
+          this.popIndentation();
+
         this.newLine();
         this.append("end");
         break;
@@ -628,13 +633,17 @@ export default class CodeGenerator extends StringBuilder {
         this.walk(declarationList.declarations[0].name);
         this.append("|");
 
-        if (forOfStatement.statement.kind !== SyntaxKind.Block) {
+        const bodyIsBlock = forOfStatement.statement.kind === SyntaxKind.Block;
+        if (!bodyIsBlock) {
           this.pushIndentation();
           this.newLine();
-          this.popIndentation();
         }
 
         this.walk(forOfStatement.statement);
+        Util.prettyPrintNode(forOfStatement.statement);
+        if (!bodyIsBlock)
+          this.popIndentation();
+
         this.newLine();
         this.append("end");
         this.newLine();
@@ -651,8 +660,8 @@ export default class CodeGenerator extends StringBuilder {
         else
           this.append("true");
 
-        const bodyIsBlock = forStatement.statement.kind !== SyntaxKind.Block;
-        if (bodyIsBlock) {
+        const bodyIsBlock = forStatement.statement.kind === SyntaxKind.Block;
+        if (!bodyIsBlock) {
           this.pushIndentation();
           this.newLine();
         }
@@ -661,7 +670,7 @@ export default class CodeGenerator extends StringBuilder {
         if (forStatement.incrementor)
           this.walk(forStatement.incrementor);
 
-        if (bodyIsBlock)
+        if (!bodyIsBlock)
           this.popIndentation();
 
         this.newLine();
@@ -680,13 +689,17 @@ export default class CodeGenerator extends StringBuilder {
           this.append("while ");
 
         this.walk(isUnary ? condition.operand : condition);
-        if (whileStatement.statement.kind !== SyntaxKind.Block) {
+
+        const bodyIsBlock = whileStatement.statement.kind === SyntaxKind.Block;
+        if (!bodyIsBlock) {
           this.pushIndentation();
           this.newLine();
-          this.popIndentation();
         }
 
         this.walk(whileStatement.statement);
+        if (!bodyIsBlock)
+          this.popIndentation();
+
         this.newLine();
         this.append("end");
         this.newLine();
@@ -703,27 +716,35 @@ export default class CodeGenerator extends StringBuilder {
           this.append("if ");
 
         this.walk(conditionInverted ? condition.operand : condition);
-        if (ifStatement.thenStatement.kind !== SyntaxKind.Block) {
+
+        const thenBodyIsBlock = ifStatement.thenStatement.kind === SyntaxKind.Block;
+        if (!thenBodyIsBlock) {
           this.pushIndentation();
           this.newLine();
-          this.popIndentation();
         }
 
         this.walk(ifStatement.thenStatement);
+        if (!thenBodyIsBlock)
+          this.popIndentation();
+
         if (ifStatement.elseStatement) {
           this.newLine();
           this.append(ifStatement.elseStatement.kind === SyntaxKind.IfStatement ? "els" : "else");
-          if (ifStatement.elseStatement.kind !== SyntaxKind.Block) {
+
+          const elseBodyIsBlock = ifStatement.elseStatement.kind === SyntaxKind.Block;
+          if (!elseBodyIsBlock) {
             this.pushIndentation();
             this.newLine();
-            this.popIndentation();
           }
 
           this.walk(ifStatement.elseStatement);
+          if (!elseBodyIsBlock)
+            this.popIndentation();
         }
 
         this.newLine();
         this.append("end");
+        this.newLine();
         break;
       }
       case SyntaxKind.TryStatement: {
@@ -767,8 +788,12 @@ export default class CodeGenerator extends StringBuilder {
         break;
       }
       case SyntaxKind.ExpressionStatement: {
-        this.walk((<ExpressionStatement>node).expression);
-        this.newLine();
+        const statement = <ExpressionStatement>node;
+        this.walk(statement.expression);
+
+        if (statement.expression.kind !== SyntaxKind.BinaryExpression)
+          this.newLine();
+
         break;
       }
 
@@ -864,6 +889,7 @@ export default class CodeGenerator extends StringBuilder {
         for (const statement of (<Block>node).statements)
           this.walk(statement);
 
+        this.popIndentation();
         this.meta.inGlobalScope = enclosingIsInScope;
         break;
       }
@@ -915,10 +941,16 @@ export default class CodeGenerator extends StringBuilder {
             this.append("|");
           }
 
-          this.pushIndentation();
-          this.newLine();
+          const functionBodyIsBlock = arrowFunction.body.kind === SyntaxKind.Block;
+          if (!functionBodyIsBlock) {
+            this.pushIndentation();
+            this.newLine();
+          }
+
           this.walk(arrowFunction.body);
-          this.popIndentation();
+          if (!functionBodyIsBlock)
+            this.popIndentation();
+
           this.newLine();
           this.append("end");
         } else {
@@ -1020,31 +1052,28 @@ export default class CodeGenerator extends StringBuilder {
     }
 
     const isAsync = this.consumeFlag("Async");
-    if (isAsync)
+    if (isAsync) {
       this.meta.asyncFunctionIdentifiers.push(typeof name === "string" ? name : name.text);
-
-      if (body) {
-        if (isAsync) {
-          this.pushIndentation();
-          this.newLine();
-          this.append("async! do");
-        }
-
-      this.walk(body);
-      const returned = this.consumeFlag("Returned");
-      if (!returned)
-        this.append("return");
-      else
-        this.popLastPart(); // remove extra newlines
-
-      if (isAsync) {
-        this.newLine();
-        this.append("end");
-        this.popIndentation();
-      }
+      this.pushIndentation();
+      this.newLine();
+      this.append("async! do");
     }
 
-    this.popIndentation();
+    if (body) {
+      this.walk(body);
+
+      const returned = this.consumeFlag("Returned");
+      console.log(this.flags);
+      if (!returned)
+        this.append("return");
+    }
+
+    if (isAsync) {
+      this.newLine();
+      this.append("end");
+      this.popIndentation();
+    }
+
     this.newLine();
     this.append("end");
     this.newLine();
@@ -1225,6 +1254,7 @@ export default class CodeGenerator extends StringBuilder {
 
   private walkFlag(flag: NodeFlags): void {
     if (flag == NodeFlags.Const) return; // don't worry abt constants
+    if (flag == NodeFlags.Let) return; // don't worry about let
     this.pushFlag(NodeFlags[flag]);
   }
 
