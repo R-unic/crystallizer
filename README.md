@@ -18,7 +18,6 @@ A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with a
   - destructuring (this is so much harder than it needs to be)
   - for..in
   - switch..case
-  - interfaces
 - polyfills:
   - `String` (😭)
   - `Object`

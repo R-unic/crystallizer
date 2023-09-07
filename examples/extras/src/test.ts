@@ -1,5 +1,5 @@
-namespace Stuff {
-  export const thing = () => "yes";
+interface Obj {
+  x: number;
 }
 
-console.log(Stuff.thing);
+const obj: Obj = { x: 5 };

@@ -58,7 +58,9 @@ import {
   ThrowStatement,
   ModuleDeclaration,
   ModuleBlock,
-  Statement
+  Statement,
+  HeritageClause,
+  InterfaceDeclaration
 } from "typescript";
 import path from "path";
 
@@ -454,7 +456,7 @@ export default class CodeGenerator extends StringBuilder {
       case SyntaxKind.FunctionDeclaration: {
         const declaration = <FunctionDeclaration>node;
         if (!declaration.name)
-          return this.error(declaration, "Anonymous functions not supported yet.", "UnsupportedAnonymousFunctions");
+          return this.error(declaration, "Anonymous functions are not supported yet.", "UnsupportedAnonymousFunctions");
 
         if (declaration.name.text[0] !== declaration.name.text[0].toLowerCase())
           return this.error(declaration.name, "Function names cannot begin with capital letters.", "FunctionBeganWithCapital");
@@ -501,9 +503,7 @@ export default class CodeGenerator extends StringBuilder {
 
       // CLASS STUFF STATEMENTS
       case SyntaxKind.InterfaceDeclaration: {
-        // gonna ignore this for now
-        // TODO: make empty class declaration
-        break;
+        return this.error(node, "Interfaces are not supported.", "UnsupportedInterfaces")
       }
       case SyntaxKind.Constructor: {
         const constructor = <ConstructorDeclaration>node;
@@ -524,62 +524,16 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.ClassDeclaration: {
         const declaration = <ClassDeclaration>node;
-        this.handleExporting();
+        this.appendClassDeclaration(
+          () => {
+            for (const member of declaration.members)
+              this.walk(member);
+          },
+          declaration.name,
+          declaration.typeParameters,
+          declaration.heritageClauses
+        );
 
-        this.append("class ");
-        if (declaration.name)
-          this.walk(declaration.name);
-        else
-          this.append(Util.toPascalCase(path.basename(this.sourceNode.fileName)));
-
-        if (declaration.typeParameters) {
-          this.append("(")
-          for (const typeParam of declaration.typeParameters)
-            this.walk(typeParam.name);
-
-          this.append(")")
-        }
-
-        const mixins: ExpressionWithTypeArguments[] = [];
-        for (const heritageClause of declaration.heritageClauses ?? [])
-          if (heritageClause.token == SyntaxKind.ExtendsKeyword) {
-            this.append(" < ")
-            this.walk(heritageClause.types[0]);
-          } else
-            mixins.push(...heritageClause.types);
-
-        this.pushIndentation();
-        this.newLine();
-
-        for (const mixin of mixins) {
-          this.append("include ");
-          this.walk(mixin);
-          this.newLine();
-        }
-
-        for (const member of declaration.members)
-          this.walk(member);
-
-        if (this.meta.publicClassProperties.length > 0)
-          this.newLine();
-
-        for (const publicProperty of this.meta.publicClassProperties) {
-          this.append("property ");
-          this.walk(publicProperty.name);
-          if (publicProperty.type) {
-            this.append(" : ");
-            this.walkType(publicProperty.type);
-          }
-
-          if (Util.isNotLast(publicProperty, this.meta.publicClassProperties))
-            this.newLine();
-        }
-
-        this.meta.publicClassProperties = [];
-        this.popIndentation();
-        this.newLine();
-        this.append("end");
-        this.newLine();
         break;
       }
       case SyntaxKind.PropertySignature: {
@@ -932,8 +886,7 @@ export default class CodeGenerator extends StringBuilder {
       }
 
       case SyntaxKind.LabeledStatement: {
-        // error: unsupported
-        break;
+        return this.error(node, "Labeled statements are not supported.", "UnsupportedLabeledStatements");
       }
 
       case SyntaxKind.EndOfFileToken: {
@@ -943,6 +896,69 @@ export default class CodeGenerator extends StringBuilder {
       default:
         throw new Error(`Unhandled AST syntax: ${Util.getSyntaxName(node.kind)}`);
     }
+  }
+
+  private appendClassDeclaration(
+    walkMembers: () => void,
+    name?: Identifier,
+    typeParameters?: NodeArray<TypeParameterDeclaration>,
+    heritageClauses?: NodeArray<HeritageClause>
+  ): void {
+
+    this.handleExporting();
+    this.append("class ");
+    if (name)
+      this.walk(name);
+    else
+      this.append(Util.toPascalCase(path.basename(this.sourceNode.fileName)));
+
+    if (typeParameters) {
+      this.append("(");
+      for (const typeParam of typeParameters)
+        this.walk(typeParam.name);
+
+      this.append(")");
+    }
+
+    const mixins: ExpressionWithTypeArguments[] = [];
+    for (const heritageClause of heritageClauses ?? [])
+      if (heritageClause.token == SyntaxKind.ExtendsKeyword) {
+        this.append(" < ");
+        this.walk(heritageClause.types[0]);
+      }
+      else
+        mixins.push(...heritageClause.types);
+
+    this.pushIndentation();
+    this.newLine();
+
+    for (const mixin of mixins) {
+      this.append("include ");
+      this.walk(mixin);
+      this.newLine();
+    }
+
+    walkMembers();
+    if (this.meta.publicClassProperties.length > 0)
+      this.newLine();
+
+    for (const publicProperty of this.meta.publicClassProperties) {
+      this.append("property ");
+      this.walk(publicProperty.name);
+      if (publicProperty.type) {
+        this.append(" : ");
+        this.walkType(publicProperty.type);
+      }
+
+      if (Util.isNotLast(publicProperty, this.meta.publicClassProperties))
+        this.newLine();
+    }
+
+    this.meta.publicClassProperties = [];
+    this.popIndentation();
+    this.newLine();
+    this.append("end");
+    this.newLine();
   }
 
   private appendBlock<T extends Node & { statements: NodeArray<Statement> }>(node: T, module = false): void {
