@@ -103,7 +103,7 @@ const DEFAULT_META: MetaValues = {
 
 export default class CodeGenerator extends StringBuilder {
   private readonly flags: string[] = [];
-  private readonly meta = DEFAULT_META;
+  private readonly meta = structuredClone(DEFAULT_META);
 
   public constructor(
     private readonly sourceNode: SourceFile,
@@ -140,14 +140,19 @@ export default class CodeGenerator extends StringBuilder {
           this.walk(declaration.initializer);
         } else {
           this.walk(declaration.name);
+
           if (declaration.type) {
             this.append(" : ");
             this.walkType(declaration.type)
+            if (declaration.type.kind === SyntaxKind.ArrayType)
+              this.meta.currentArrayType = this.getMappedType((<ArrayTypeNode>declaration.type).elementType.getText(this.sourceNode));
           }
+
           if (declaration.initializer) {
             this.append(" = ");
             this.walk(declaration.initializer);
           }
+          this.resetMeta("currentArrayType");
         }
 
         this.newLine();
@@ -419,6 +424,8 @@ export default class CodeGenerator extends StringBuilder {
           this.walkType(param.type);
           if (param.questionToken)
             this.append("?");
+          if (param.type.kind === SyntaxKind.ArrayType)
+            this.meta.currentArrayType = this.getMappedType((<ArrayTypeNode>param.type).elementType.getText(this.sourceNode));
         }
 
         if (param.initializer) {
@@ -426,7 +433,8 @@ export default class CodeGenerator extends StringBuilder {
           this.walk(param.initializer);
         }
 
-        this.resetMeta("spreadParameter");
+        this.meta.spreadParameter = false;
+        this.resetMeta("currentArrayType");
         break;
       }
       case SyntaxKind.FunctionDeclaration: {
@@ -640,7 +648,6 @@ export default class CodeGenerator extends StringBuilder {
         }
 
         this.walk(forOfStatement.statement);
-        Util.prettyPrintNode(forOfStatement.statement);
         if (!bodyIsBlock)
           this.popIndentation();
 
@@ -836,32 +843,31 @@ export default class CodeGenerator extends StringBuilder {
           this.append(this.meta.currentHashKeyType);
           this.append(" => ");
           this.append(this.meta.currentHashValueType);
-          this.resetMeta("currentHashKeyType");
-          this.resetMeta("currentHashValueType");
+          this.resetMeta("currentHashKeyType", "currentHashValueType");
         }
 
         break;
       }
       case SyntaxKind.ArrayLiteralExpression: {
         const array = <ArrayLiteralExpression>node;
-        if (!this.meta.currentArrayType)
-          return this.error(array, "All arrays must have a type annotation.", "UnannotatedArray");
+        if (array.elements.length === 0 && !this.meta.currentArrayType)
+          return this.error(array, "Empty arrays must have a type annotation.", "UnannotatedEmptyArray");
 
-        const elementType = this.getMappedType(this.meta.currentArrayType);
-        this.resetMeta("currentArrayType");
-
-        this.append("TsArray(");
-        this.append(elementType);
-        this.append(").new(");
-        this.append("[");
+        this.append("TsArray.new([");
         for (const element of array.elements) {
           this.walk(element);
           if (array.elements.indexOf(element) !== array.elements.length - 1)
           this.append(", ");
         }
 
-        this.append("] of ");
-        this.append(elementType);
+        this.append("]");
+        if (this.meta.currentArrayType) {
+          const elementType = this.getMappedType(this.meta.currentArrayType);
+          this.resetMeta("currentArrayType");
+          this.append(" of ");
+          this.append(elementType);
+        }
+
         this.append(")");
         break;
       }
@@ -959,19 +965,15 @@ export default class CodeGenerator extends StringBuilder {
             this.append(", ");
         }
 
-      if (blockName)
-        this.popLastPart(); // remove extra comma
+      if (blockName) {
+        this.append("&");
+        this.walk(blockName);
+      }
 
       if (!providedArrowFunction)
         this.append(")");
     } else if (blockParameter)
       this.append("(nil)");
-
-    if (blockName) {
-      this.append(" { ");
-      this.walk(blockName);
-      this.append("() }");
-    }
   }
 
   private handleExporting(): void {
@@ -1063,7 +1065,6 @@ export default class CodeGenerator extends StringBuilder {
       this.walk(body);
 
       const returned = this.consumeFlag("Returned");
-      console.log(this.flags);
       if (!returned)
         this.append("return");
     }
@@ -1144,10 +1145,9 @@ export default class CodeGenerator extends StringBuilder {
         case SyntaxKind.DeclareKeyword: {
           break;
         }
-        default: {
-          console.error(`Unhandled modifier: ${Util.getSyntaxName(modifier.kind)}`);
-          process.exit(1);
-        }
+
+        default:
+          throw new Error(`Unhandled modifier: ${Util.getSyntaxName(modifier.kind)}`);
       }
   }
 
@@ -1216,7 +1216,6 @@ export default class CodeGenerator extends StringBuilder {
           this.append("TsArray(");
           this.walkType(arrayType.elementType);
           this.append(")");
-          this.meta.currentArrayType = this.getMappedType(arrayType.elementType.getText(this.sourceNode));
         }
 
         break;
@@ -1299,9 +1298,11 @@ export default class CodeGenerator extends StringBuilder {
     return matched;
   }
 
-  private resetMeta(key: keyof MetaValues): void {
-    if (typeof DEFAULT_META[key] !== "undefined") return;
-    this.meta[key] = undefined;
+  private resetMeta(...keys: (keyof MetaValues)[]): void {
+    for (const key of keys) {
+      if (DEFAULT_META[key] !== undefined) continue;
+      this.meta[key] = undefined;
+    }
   }
 
   private error(node: Node, message: string, errorType: string) {

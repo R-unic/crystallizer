@@ -21,3 +21,8 @@ function timeSum(times: string[]): number[] {
 
   return [hours, minutes, seconds];
 }
+
+console.log(timeSum(["1:23:45"])); // ➞ [1, 23, 45]
+console.log(timeSum(["1:03:45", "1:23:05"])); // ➞ [2, 26, 50]
+console.log(timeSum(["5:39:42", "10:02:08", "8:26:33"])); // ➞ [24, 8, 23]
+console.log(timeSum([])); // ➞ [0, 0, 0]
