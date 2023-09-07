@@ -15,9 +15,10 @@ A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with a
   - watch mode
 - codegen:
   - ignore advanced type generics (T extends, ternary operator, initializers)
-  - destructuring
+  - destructuring (this is so much harder than it needs to be)
   - for..in
 - polyfills:
+  - `Number` (😭)
   - `String` (😭)
   - `Object`
   - `Promise`

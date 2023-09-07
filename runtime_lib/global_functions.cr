@@ -1,6 +1,6 @@
 require "schedule"
 
-def set_timeout(delay : Number, &block) : Nil
+def setTimeout(delay : Number, &block) : Nil
   future = Schedule.after(delay.milliseconds) do
     block.call
   end
@@ -9,9 +9,17 @@ def set_timeout(delay : Number, &block) : Nil
   end
 end
 
-def set_interval(delay : Number, &block) : Nil
+def setInterval(delay : Number, &block) : Nil
   future = Schedule.every(delay.milliseconds) { block.call }
   until future.completed?
     Fiber.yield
   end
+end
+
+def parseInt(string : String) : Int
+  string.to_i
+end
+
+def parseFloat(string : String) : Float
+  string.to_f
 end

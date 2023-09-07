@@ -12,6 +12,7 @@ export default new Map<string, string>([
   ["u128", "UInt128"],
   ["bigint", "BigInt"],
   ["number", "Num"],
+  ["Number", "Num"],
   ["string", "String"],
   ["void", "Nil"],
   ["undefined", "Nil"],

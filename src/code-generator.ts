@@ -68,7 +68,6 @@ import BINARY_OPERATOR_MAP from "./binary-operator-map";
 const UNDECLARABLE_TYPE_NAMES = ["i32", "f32", "u32", "i64", "f64", "u64"];
 const UNCASTABLE_TYPES = [SyntaxKind.UnknownKeyword, SyntaxKind.AnyKeyword];
 const CLASS_MODIFIERS = [SyntaxKind.PublicKeyword, SyntaxKind.PrivateKeyword, SyntaxKind.ProtectedKeyword, SyntaxKind.ReadonlyKeyword];
-const SNAKE_CASE_GLOBALS = ["setTimeout", "setInterval"];
 const REVERSE_ARGS_GLOBAL_FUNCTIONS = ["setTimeout", "setInterval"];
 const REVERSE_ARGS_CLASS_FUNCTIONS = ["reduce", "reduceRight"];
 
@@ -124,7 +123,7 @@ export default class CodeGenerator extends StringBuilder {
       case SyntaxKind.QualifiedName: {
         const { left, right } = <QualifiedName>node;
         this.walk(left);
-        this.append(".");
+        this.append("::");
         this.walk(right);
         break
       }
@@ -293,12 +292,9 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.CallExpression: {
         const call = <CallExpression>node;
-
-        const reverse = <T extends Node>(array: NodeArray<T>): T[] =>
-          array.map((_, index, array) => array[array.length - 1 - index]);
-
         let callArguments: NodeArray<Expression> | Expression[] = call.arguments;
         let blockParameter = false;
+
         if ([SyntaxKind.Identifier, SyntaxKind.PropertyAccessExpression].includes(call.expression.kind)) {
           const isPropertyAccess = call.expression.kind === SyntaxKind.PropertyAccessExpression;
           const functionName = isPropertyAccess
@@ -311,21 +307,12 @@ export default class CodeGenerator extends StringBuilder {
           if (this.meta.inGlobalScope && this.meta.asyncFunctionIdentifiers.includes(functionName))
             this.append("await ");
 
-          if (!isPropertyAccess) {
-            if (REVERSE_ARGS_GLOBAL_FUNCTIONS.includes(functionName))
-            callArguments = reverse(callArguments);
+          const reverseGlobalArgs = REVERSE_ARGS_GLOBAL_FUNCTIONS.includes(functionName) && !isPropertyAccess;
+          const reverseClassArgs = REVERSE_ARGS_CLASS_FUNCTIONS.includes(functionName) && isPropertyAccess;
+          if (reverseClassArgs || reverseGlobalArgs)
+            callArguments = callArguments.map((_, index, array) => array[array.length - 1 - index]);
 
-            if (SNAKE_CASE_GLOBALS.includes(functionName))
-              this.append(Util.toSnakeCase(functionName));
-            else
-              this.walk(call.expression);
-          } else {
-            if (REVERSE_ARGS_CLASS_FUNCTIONS.includes(functionName))
-              callArguments = reverse(callArguments);
-
-            this.walk(call.expression);
-          }
-
+          this.walk(call.expression);
           if (this.meta.blockParameter === functionName) {
             this.append(".call");
             blockParameter = true;
@@ -333,61 +320,7 @@ export default class CodeGenerator extends StringBuilder {
         } else
           this.walk(call.expression);
 
-        let blockName: Identifier | undefined;
-        if (callArguments.length > 0) {
-          let providedArrowFunction = false;
-          let providedBlock = false;
-
-          this.append("(");
-          for (const arg of callArguments)
-            if (arg.kind === SyntaxKind.Identifier && this.meta.allFunctionIdentifiers.includes((<Identifier>arg).text)) {
-              if (providedBlock || providedArrowFunction)
-                this.error(arg, "Functions may only have one function argument.", "MultipleFunctionsPassed");
-
-              blockName = <Identifier>arg;
-              providedBlock = true;
-            } else if (arg.kind === SyntaxKind.ArrowFunction) {
-              if (providedBlock || providedArrowFunction)
-                this.error(arg, "Functions may only have one function argument.", "MultipleFunctionsPassed");
-
-              providedArrowFunction = true;
-              this.popLastPart();
-
-              const arrowFunction = <ArrowFunction>arg;
-              this.append(" do");
-              if (arrowFunction.parameters.length > 0) {
-                this.append(" |");
-                this.appendParameters(arrowFunction);
-                this.append("|");
-              }
-
-              this.pushIndentation();
-              this.newLine();
-              this.walk(arrowFunction.body);
-              this.popIndentation();
-              this.newLine();
-              this.append("end");
-            } else {
-              this.walk(arg);
-              if (Util.isNotLast(arg, callArguments))
-                this.append(", ");
-            }
-
-          if (blockName)
-            this.popLastPart(); // remove extra comma
-
-          if (!providedArrowFunction)
-            this.append(")");
-        } else
-          if (blockParameter)
-            this.append("(nil)");
-
-        if (blockName) {
-          this.append(" { ");
-          this.walk(blockName)
-          this.append("() }");
-        }
-
+        this.appendCallExpressionArguments(callArguments, blockParameter);
         break;
       }
       case SyntaxKind.NewExpression: {
@@ -950,6 +883,62 @@ export default class CodeGenerator extends StringBuilder {
 
       default:
         throw new Error(`Unhandled AST syntax: ${Util.getSyntaxName(node.kind)}`);
+    }
+  }
+
+  private appendCallExpressionArguments(callArguments: NodeArray<Expression> | Expression[], blockParameter: boolean): void {
+    let blockName: Identifier | undefined;
+    if (callArguments.length > 0) {
+      let providedArrowFunction = false;
+      let providedBlock = false;
+
+      this.append("(");
+      for (const arg of callArguments)
+        if (arg.kind === SyntaxKind.Identifier && this.meta.allFunctionIdentifiers.includes((<Identifier>arg).text)) {
+          if (providedBlock || providedArrowFunction)
+            this.error(arg, "Functions may only have one function argument.", "MultipleFunctionsPassed");
+
+          blockName = <Identifier>arg;
+          providedBlock = true;
+        } else if (arg.kind === SyntaxKind.ArrowFunction) {
+          if (providedBlock || providedArrowFunction)
+            this.error(arg, "Functions may only have one function argument.", "MultipleFunctionsPassed");
+
+          providedArrowFunction = true;
+          this.popLastPart();
+
+          const arrowFunction = <ArrowFunction>arg;
+          this.append(" do");
+          if (arrowFunction.parameters.length > 0) {
+            this.append(" |");
+            this.appendParameters(arrowFunction);
+            this.append("|");
+          }
+
+          this.pushIndentation();
+          this.newLine();
+          this.walk(arrowFunction.body);
+          this.popIndentation();
+          this.newLine();
+          this.append("end");
+        } else {
+          this.walk(arg);
+          if (Util.isNotLast(arg, callArguments))
+            this.append(", ");
+        }
+
+      if (blockName)
+        this.popLastPart(); // remove extra comma
+
+      if (!providedArrowFunction)
+        this.append(")");
+    } else if (blockParameter)
+      this.append("(nil)");
+
+    if (blockName) {
+      this.append(" { ");
+      this.walk(blockName);
+      this.append("() }");
     }
   }
 
