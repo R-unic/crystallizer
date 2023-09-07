@@ -11,7 +11,13 @@ type u64 = number;
 type i128 = number;
 type u128 = number;
 
-interface Array<T> extends Omit<ThisType<T>, "entries" | "keys" | "values"> {
+interface Array<T> {
+  readonly __cache: unknown;
   first(): T;
   last(): T;
+}
+
+interface Number {
+  floor(): number;
+  ceil(): number;
 }

@@ -1,5 +1,5 @@
 {
-  "exclude": ["./examples"],
+  "exclude": ["./examples", "./node_modules/typescript/lib/lib.es5.d.ts"],
   "compilerOptions": {
     /* Visit https://aka.ms/tsconfig to read more about this file */
 

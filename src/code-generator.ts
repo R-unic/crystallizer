@@ -60,16 +60,12 @@ import {
 import path from "path";
 
 import Util from "./utility";
+import Constants from "./constants";
 import Log from "./logger";
 import StringBuilder from "./string-builder";
 
 import TYPE_MAP from "./type-map";
 import BINARY_OPERATOR_MAP from "./binary-operator-map";
-const UNDECLARABLE_TYPE_NAMES = ["i32", "f32", "u32", "i64", "f64", "u64"];
-const UNCASTABLE_TYPES = [SyntaxKind.UnknownKeyword, SyntaxKind.AnyKeyword];
-const CLASS_MODIFIERS = [SyntaxKind.PublicKeyword, SyntaxKind.PrivateKeyword, SyntaxKind.ProtectedKeyword, SyntaxKind.ReadonlyKeyword];
-const REVERSE_ARGS_GLOBAL_FUNCTIONS = ["setTimeout", "setInterval"];
-const REVERSE_ARGS_CLASS_FUNCTIONS = ["reduce", "reduceRight"];
 
 interface MetaValues extends Record<string, unknown> {
   currentArrayType?: string;
@@ -94,7 +90,7 @@ const DEFAULT_META: MetaValues = {
   blockParameter: undefined,
   arrowFunctionName: undefined,
   publicClassProperties: [],
-  allFunctionIdentifiers: [...REVERSE_ARGS_GLOBAL_FUNCTIONS, "parseInt", "parseFloat"], // TODO: make this (and the below field) a property of the Crystallizer class instead to track function identifiers across all files, import these in
+  allFunctionIdentifiers: [...Constants.REVERSE_ARGS_GLOBAL_FUNCTIONS, "parseInt", "parseFloat"], // TODO: make this (and the below field) a property of the Crystallizer class instead to track function identifiers across all files, import these in
   asyncFunctionIdentifiers: [],
   inGlobalScope: true,
   spreadParameter: false,
@@ -111,8 +107,10 @@ export default class CodeGenerator extends StringBuilder {
   ) { super(); }
 
   public generate(): string {
-    if (!this.testing)
+    if (!this.testing) {
+      this.append("# Compiled from TypeScript with Crystallizer");
       this.append(`require "./runtime_lib/*"\n\n`);
+    }
 
     this.walkChildren(this.sourceNode);
     return this.generated.trim();
@@ -175,7 +173,7 @@ export default class CodeGenerator extends StringBuilder {
 
       case SyntaxKind.TypeAliasDeclaration: {
         const alias = <TypeAliasDeclaration>node;
-        if (UNDECLARABLE_TYPE_NAMES.includes(alias.name.getText(this.sourceNode)))
+        if (Constants.UNDECLARABLE_TYPE_NAMES.includes(alias.name.getText(this.sourceNode)))
           break;
 
         this.walkModifiers(alias);
@@ -267,6 +265,9 @@ export default class CodeGenerator extends StringBuilder {
         }
 
         this.walk(access.name);
+        if (propertyNameText === "floor")
+          this.append(".to_i");
+
         break;
       }
       case SyntaxKind.ElementAccessExpression: {
@@ -283,9 +284,17 @@ export default class CodeGenerator extends StringBuilder {
           }
 
         this.walk(access.expression);
+        if (indexText === '"toString"') {
+          this.append(".to_s");
+          break;
+        }
+
         this.append("[");
         this.walk(access.argumentExpression);
         this.append("]");
+        if (indexText === '"floor"')
+          this.append(".to_i");
+
         break;
       }
       case SyntaxKind.TypeAssertionExpression:
@@ -312,8 +321,8 @@ export default class CodeGenerator extends StringBuilder {
           if (this.meta.inGlobalScope && this.meta.asyncFunctionIdentifiers.includes(functionName))
             this.append("await ");
 
-          const reverseGlobalArgs = REVERSE_ARGS_GLOBAL_FUNCTIONS.includes(functionName) && !isPropertyAccess;
-          const reverseClassArgs = REVERSE_ARGS_CLASS_FUNCTIONS.includes(functionName) && isPropertyAccess;
+          const reverseGlobalArgs = Constants.REVERSE_ARGS_GLOBAL_FUNCTIONS.includes(functionName) && !isPropertyAccess;
+          const reverseClassArgs = Constants.REVERSE_ARGS_CLASS_FUNCTIONS.includes(functionName) && isPropertyAccess;
           if (reverseClassArgs || reverseGlobalArgs)
             callArguments = callArguments.map((_, index, array) => array[array.length - 1 - index]);
 
@@ -1026,7 +1035,7 @@ export default class CodeGenerator extends StringBuilder {
         const isStatic = modifierTypes.includes(SyntaxKind.StaticKeyword);
         if (isPublic)
           this.meta.publicClassProperties.push(param);
-        if (CLASS_MODIFIERS.includes(modifierTypes[0]))
+        if (Constants.CLASS_MODIFIERS.includes(modifierTypes[0]))
           if (isStatic)
             this.append("@@");
           else
@@ -1081,7 +1090,7 @@ export default class CodeGenerator extends StringBuilder {
   }
 
   private appendTypeCastMethod(type: TypeNode) {
-    if (UNCASTABLE_TYPES.includes(type.kind)) return;
+    if (Constants.UNCASTABLE_TYPES.includes(type.kind)) return;
     this.append(".");
 
     const to = "to_";
@@ -1096,7 +1105,7 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.TypeReference: {
         const typeText = type.getText(this.sourceNode);
-        if (UNDECLARABLE_TYPE_NAMES.includes(typeText)) {
+        if (Constants.UNDECLARABLE_TYPE_NAMES.includes(typeText)) {
           this.append(to + typeText);
           break;
         }
