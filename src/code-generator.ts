@@ -60,7 +60,9 @@ import {
   ModuleBlock,
   Statement,
   HeritageClause,
-  InterfaceDeclaration
+  SwitchStatement,
+  CaseBlock,
+  isCaseClause
 } from "typescript";
 import path from "path";
 
@@ -83,6 +85,8 @@ interface MetaValues extends Record<string, unknown> {
   allFunctionIdentifiers: string[];
   asyncFunctionIdentifiers: string[];
   inGlobalScope: boolean;
+  inSwitchStatement: boolean;
+  inBlock: boolean;
   spreadParameter: boolean;
   bindingCount: number;
 }
@@ -98,7 +102,9 @@ const DEFAULT_META: MetaValues = {
   allFunctionIdentifiers: [...Constants.REVERSE_ARGS_GLOBAL_FUNCTIONS, "parseInt", "parseFloat"], // TODO: make this (and the below field) a property of the Crystallizer class instead to track function identifiers across all files, import these in
   asyncFunctionIdentifiers: [],
   inGlobalScope: true,
+  inSwitchStatement: false,
   spreadParameter: false,
+  inBlock: false,
   bindingCount: 0
 };
 
@@ -405,6 +411,16 @@ export default class CodeGenerator extends StringBuilder {
 
       //   break;
       // }
+
+      case SyntaxKind.ContinueStatement: {
+        this.append("next");
+        break;
+      }
+      case SyntaxKind.BreakStatement: {
+        if (this.meta.inSwitchStatement) return;
+        this.append("break");
+        break;
+      }
 
       // FUNCTION STUFF STATEMENTS
       case SyntaxKind.ReturnStatement: {
@@ -779,6 +795,21 @@ export default class CodeGenerator extends StringBuilder {
         this.walk(throwStatement.expression);
         break;
       }
+      case SyntaxKind.SwitchStatement: {
+        const switchStatement = <SwitchStatement>node;
+        const enclosingIsInSwitchStatement = this.meta.inSwitchStatement;
+        this.meta.inSwitchStatement = true;
+
+        this.append("case ");
+        this.walk(switchStatement.expression);
+        this.walk(switchStatement.caseBlock);
+
+        this.append("end");
+        this.newLine();
+        this.meta.inSwitchStatement = enclosingIsInSwitchStatement;
+        break;
+      }
+
       case SyntaxKind.ExpressionStatement: {
         const statement = <ExpressionStatement>node;
         this.walk(statement.expression);
@@ -872,6 +903,27 @@ export default class CodeGenerator extends StringBuilder {
         this.append((<LiteralLikeNode>node).text);
         break;
       }
+      case SyntaxKind.CaseBlock: {
+        const caseBlock = <CaseBlock>node;
+        const enclosingIsInScope = this.meta.inGlobalScope;
+        this.meta.inGlobalScope = false;
+        this.newLine();
+
+        for (const clause of caseBlock.clauses) {
+          if (isCaseClause(clause)) {
+            this.append("when ");
+            this.walk(clause.expression);
+          } else
+            this.append("else");
+
+          this.appendBlock(clause);
+          this.popLastPart();
+          this.newLine();
+        }
+
+        this.meta.inGlobalScope = enclosingIsInScope;
+        break;
+      }
       case SyntaxKind.ModuleBlock: {
         this.appendBlock(<ModuleBlock>node, true);
         break;
@@ -962,10 +1014,15 @@ export default class CodeGenerator extends StringBuilder {
   }
 
   private appendBlock<T extends Node & { statements: NodeArray<Statement> }>(node: T, module = false): void {
+    const enclosingIsInBlock = this.meta.inBlock;
+    this.meta.inBlock = true;
+
     const enclosingIsInScope = this.meta.inGlobalScope;
     this.meta.inGlobalScope = false;
-    this.pushIndentation();
-    this.newLine();
+    if (!enclosingIsInBlock) {
+      this.pushIndentation();
+      this.newLine();
+    }
 
     if (module) {
       this.append("extend self");
@@ -975,8 +1032,11 @@ export default class CodeGenerator extends StringBuilder {
     for (const statement of node.statements)
       this.walk(statement);
 
-    this.popIndentation();
+    if (!enclosingIsInBlock)
+      this.popIndentation();
+
     this.meta.inGlobalScope = enclosingIsInScope;
+    this.meta.inBlock = enclosingIsInBlock;
   }
 
   private appendCallExpressionArguments(callArguments: NodeArray<Expression> | Expression[], blockParameter: boolean): void {
