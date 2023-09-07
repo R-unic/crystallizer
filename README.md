@@ -1,3 +1,4 @@
+![build](https://github.com/R-unic/crystallizer/actions/workflows/test.yml/badge.svg)
 # Crystallizer
 A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with all the speed and compatibility of Crystal.
 
