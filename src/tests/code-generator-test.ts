@@ -24,7 +24,7 @@ describe("CodeGenerator", () => {
       });
       it("arrays", () => {
         testGenerate("const a: i32[] = [1,2,3]")
-          .should.equal("a : TsArray(Int32) = TsArray(Int32).new([1, 2, 3] of Int32)");
+          .should.equal("a : TsArray(Int32) = TsArray.new([1, 2, 3] of Int32)");
       });
       it("objects", () => {
         testGenerate("const t = {epic: true, typescript: false}")
