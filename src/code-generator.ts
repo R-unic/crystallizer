@@ -56,6 +56,9 @@ import {
   ObjectBindingPattern,
   TryStatement,
   ThrowStatement,
+  ModuleDeclaration,
+  ModuleBlock,
+  Statement
 } from "typescript";
 import path from "path";
 
@@ -109,7 +112,9 @@ export default class CodeGenerator extends StringBuilder {
   public generate(): string {
     if (!this.testing) {
       this.append("# Compiled from TypeScript with Crystallizer");
-      this.append(`require "./runtime_lib/*"\n\n`);
+      this.newLine();
+      this.append(`require "./runtime_lib/*"`);
+      this.newLine(2);
     }
 
     this.walkChildren(this.sourceNode);
@@ -631,6 +636,23 @@ export default class CodeGenerator extends StringBuilder {
 
         break;
       }
+      case SyntaxKind.ModuleDeclaration: {
+        const declaration = <ModuleDeclaration>node;
+        this.handleExporting();
+
+        this.append("module ");
+        this.walk(declaration.name);
+
+        if (declaration.body) {
+          this.walk(declaration.body);
+          this.popLastPart();
+        }
+
+        this.newLine();
+        this.append("end");
+        this.newLine();
+        break;
+      }
 
       case SyntaxKind.ImportDeclaration: {
         const imports = <ImportDeclaration>node;
@@ -807,7 +829,7 @@ export default class CodeGenerator extends StringBuilder {
         const statement = <ExpressionStatement>node;
         this.walk(statement.expression);
 
-        if (statement.expression.kind !== SyntaxKind.BinaryExpression)
+        if (![SyntaxKind.BinaryExpression].includes(statement.expression.kind))
           this.newLine();
 
         break;
@@ -896,16 +918,12 @@ export default class CodeGenerator extends StringBuilder {
         this.append((<LiteralLikeNode>node).text);
         break;
       }
+      case SyntaxKind.ModuleBlock: {
+        this.appendBlock(<ModuleBlock>node, true);
+        break;
+      }
       case SyntaxKind.Block: {
-        const enclosingIsInScope = this.meta.inGlobalScope
-        this.meta.inGlobalScope = false;
-        this.pushIndentation();
-        this.newLine();
-        for (const statement of (<Block>node).statements)
-          this.walk(statement);
-
-        this.popIndentation();
-        this.meta.inGlobalScope = enclosingIsInScope;
+        this.appendBlock(<Block>node);
         break;
       }
       case SyntaxKind.SyntaxList: {
@@ -925,6 +943,24 @@ export default class CodeGenerator extends StringBuilder {
       default:
         throw new Error(`Unhandled AST syntax: ${Util.getSyntaxName(node.kind)}`);
     }
+  }
+
+  private appendBlock<T extends Node & { statements: NodeArray<Statement> }>(node: T, module = false): void {
+    const enclosingIsInScope = this.meta.inGlobalScope;
+    this.meta.inGlobalScope = false;
+    this.pushIndentation();
+    this.newLine();
+
+    if (module) {
+      this.append("extend self");
+      this.newLine(2);
+    }
+
+    for (const statement of node.statements)
+      this.walk(statement);
+
+    this.popIndentation();
+    this.meta.inGlobalScope = enclosingIsInScope;
   }
 
   private appendCallExpressionArguments(callArguments: NodeArray<Expression> | Expression[], blockParameter: boolean): void {

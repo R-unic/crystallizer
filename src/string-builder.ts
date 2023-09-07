@@ -26,7 +26,7 @@ export default class StringBuilder {
     this.indentation--;
   }
 
-  protected newLine(): void {
-    this.append("\n" + "    ".repeat(this.indentation));
+  protected newLine(amount = 1): void {
+    this.append(("\n" + "    ".repeat(this.indentation)).repeat(amount));
   }
 }
