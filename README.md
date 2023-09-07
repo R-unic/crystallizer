@@ -18,5 +18,6 @@ A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with a
   - destructuring
   - for..in
 - polyfills:
+  - `String` (😭)
   - `Object`
   - `Promise`

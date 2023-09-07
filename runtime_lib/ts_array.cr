@@ -2,6 +2,10 @@ class TsArray(T)
   def initialize(@cache : Array(T) = [] of T)
   end
 
+  def __cache : Array(T)
+    @cache
+  end
+
   def self.of(*values : U) forall U
     TsArray(U).new([*values] of U)
   end
@@ -24,7 +28,6 @@ class TsArray(T)
     @cache.includes?(value)
   end
 
-
   def push(*values : T) : Int
     index = length
     @cache.push(*values)
@@ -40,7 +43,7 @@ class TsArray(T)
   end
 
   def unshift(*values : T) : Int
-    values.each do |value|
+    values.reverse.each do |value|
       @cache.insert(0, value)
     end
     length
@@ -50,11 +53,19 @@ class TsArray(T)
     @cache.join(separator)
   end
 
-  def indexOf(value : T, from_index : Int) : Int?
+  def indexOf(value : T) : Int32?
+    @cache.index(value)
+  end
+
+  def lastIndexOf(value : T) : Int32?
+    @cache.rindex(value)
+  end
+
+  def indexOf(value : T, from_index : Int32?) : Int32?
     @cache.index(value, from_index)
   end
 
-  def lastIndexOf(value : T, from_index : Int) : Int?
+  def lastIndexOf(value : T, from_index : Int32?) : Int32?
     @cache.rindex(value, from_index)
   end
 
@@ -78,11 +89,11 @@ class TsArray(T)
     TsArray(T).new(@cache.reverse)
   end
 
-  def slice(start : Int?, finish : Int?) : TsArray(T)
+  def slice(start : Int32?, finish : Int32?) : TsArray(T)
     TsArray(T).new(@cache[(start || 0)..(finish || length - 1)])
   end
 
-  def splice(start : Int, delete_count : Int?) : TsArray(T)
+  def splice(start : Int, delete_count : Int32?) : TsArray(T)
     old = @cache
     new = TsArray(T).new(@cache.truncate(start, delete_count || 1))
     old - new
@@ -94,10 +105,10 @@ class TsArray(T)
     result
   end
 
-  def concat(*arrays : Array(T)) : TsArray(T)
+  def concat(*arrays : TsArray(T)) : TsArray(T)
     result = TsArray(T).new(@cache)
     arrays.each do |array|
-      array.each do |value|
+      array.forEach do |value|
         result.push(value)
       end
     end
@@ -135,26 +146,29 @@ class TsArray(T)
     mapped
   end
 
-  def sort(&sorter : T, T -> U) : TsArray(U) forall U
-    TsArray(U).new(@cache.sort &sorter)
+  def sort(&sorter : T, T -> Bool) : TsArray(T)
+    TsArray(T).new(@cache.sort { |a, b|
+      sorter.call(a, b) ? 1 : -1
+    })
   end
 
   def find(&predicate : T, Int32 -> Bool) : T?
     filter(&predicate).first?
   end
 
-  def fill(value : T, start : Int?, finish : Int?) : self
+  def fill(value : T, start : Int32?, finish : Int32?) : self
     @cache.fill(value, start, finish)
     self
   end
 
-  def findIndex(&predicate : T, Int32 -> Bool) : Int?
-    indexOf(find(&predicate))
+  def findIndex(&predicate : T, Int32 -> Bool) : Int32?
+    indexOf(find(&predicate).not_nil!)
   end
 
   def reduce(initial : U, &block : U, T -> U) : U forall U
     accumulator = initial
-    forEach do |v|
+    forEach do |v, i|
+      next if i == 0 && initial == first
       accumulator = block.call(accumulator, v)
     end
     accumulator
@@ -166,7 +180,8 @@ class TsArray(T)
 
   def reduceRight(initial : U, &block : U, T -> U) : U forall U
     accumulator = initial
-    reverse.forEach do |v|
+    reverse.forEach do |v, i|
+      next if i == 0 && initial == last
       accumulator = block.call(accumulator, v)
     end
     accumulator
@@ -174,5 +189,9 @@ class TsArray(T)
 
   def reduceRight(&block : T, T -> T) : T
     reduceRight(last, &block)
+  end
+
+  def to_s : String
+    @cache.to_s
   end
 end
