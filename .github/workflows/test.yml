@@ -24,8 +24,8 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
     - name: Install dependencies
-      run: npm i && npm i -g typescript@5.1.3
-    - name: Build TypeScript
-      run: tsc
+      run: npm i
+    - name: Compile TypeScript
+      run: npx tsc --skipLibCheck
     - name: Run tests
       run: npm test -s
