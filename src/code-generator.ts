@@ -1183,11 +1183,15 @@ export default class CodeGenerator extends StringBuilder {
     }
 
     if (body) {
+      const enclosingIsInGlobalScope = this.meta.inGlobalScope
+      this.meta.inGlobalScope = false;
       this.walk(body);
 
       const returned = this.consumeFlag("Returned");
       if (!returned)
         this.append("return");
+
+      this.meta.inGlobalScope = enclosingIsInGlobalScope;
     }
 
     if (isAsync) {

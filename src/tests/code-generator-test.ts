@@ -56,6 +56,22 @@ describe("CodeGenerator", () => {
           "end"
         ].join("\n"));
       });
+      it("asynchronous", () => {
+        testGenerate([
+          "async function doSomething(): void {",
+          TAB + "console.log(\"doing something\");",
+          "}",
+          "doSomething();"
+        ].join("\n")).should.equal([
+          "private def doSomething : Nil",
+          TAB + "async! do",
+          TAB + TAB + "puts(\"doing something\")",
+          TAB + TAB + "return",
+          TAB + "end",
+          "end",
+          "await doSomething"
+        ].join("\n"));
+      });
     });
     describe("should transpile classes", () => {
       it("without generics", () => {
