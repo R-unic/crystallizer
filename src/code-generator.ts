@@ -1035,7 +1035,7 @@ export default class CodeGenerator extends StringBuilder {
     if (!enclosingIsInBlock)
       this.popIndentation();
 
-    this.meta.inGlobalScope = enclosingIsInScope;
+    this.meta.in1cope = enclosingIsInScope;
     this.meta.inBlock = enclosingIsInBlock;
   }
 
@@ -1217,10 +1217,10 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.TypeReference: {
         const typeText = type.getText(this.sourceNode);
-        if (Constants.UNDECLARABLE_TYPE_NAMES.includes(typeText)) {
+        if (Constants.UNDECLARABLE_TYPE_NAMES.includes(typeText))
           this.append(to + typeText);
-          break;
-        }
+
+        break;
       }
 
       default: {

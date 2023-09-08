@@ -1,5 +1,5 @@
 {
-  "exclude": ["./examples", "./node_modules/typescript/lib/lib.es5.core.d.ts"],
+  "exclude": ["./examples", "./runtime_lib", "./node_modules/typescript/lib/lib.es2015.core.d.ts"],
   "compilerOptions": {
     /* Visit https://aka.ms/tsconfig to read more about this file */
 
@@ -49,6 +49,7 @@
     // "stripInternal": true,                            /* Disable emitting declarations that have '@internal' in their JSDoc comments. */
     // "noEmitHelpers": true,                            /* Disable generating custom helper functions like '__extends' in compiled output. */
     // "noEmitOnError": true,                            /* Disable emitting files if any type checking errors are reported. */
+    "noFallthroughCasesInSwitch": true,
     "preserveConstEnums": true,                       /* Disable erasing 'const enum' declarations in generated code. */
 
     // "allowSyntheticDefaultImports": true,             /* Allow 'import x from y' when a module doesn't have a default export. */
