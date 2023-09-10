@@ -776,6 +776,9 @@ export default class CodeGenerator extends StringBuilder {
         this.meta.inSwitchStatement = enclosingIsInSwitchStatement;
         break;
       }
+      case SyntaxKind.WithStatement: {
+        return this.error(node, "The 'with' statement is not supported within Crystallizer.", "UnsupportedWithStatement");
+      }
 
       case SyntaxKind.ExpressionStatement: {
         const statement = <ExpressionStatement>node;
