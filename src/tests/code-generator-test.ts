@@ -32,7 +32,7 @@ describe("CodeGenerator", () => {
       });
     });
     describe("should transpile functions", () => {
-      it("without generics", () => {
+      it("regular", () => {
         testGenerate([
           "function saySomething(): void {",
           TAB + "console.log(\"something\");",
@@ -52,6 +52,18 @@ describe("CodeGenerator", () => {
         ].join("\n")).should.equal([
           "private def printValue(value : T) : Nil forall T",
           TAB + "puts(value)",
+          TAB + "return",
+          "end"
+        ].join("\n"));
+      });
+      it("with a rest parameter", () => {
+        testGenerate([
+          "function print(...messages: string[]): void {",
+          TAB + "console.log(...messages);",
+          "}"
+        ].join("\n")).should.equal([
+          "private def print(*messages : String) : Nil",
+          TAB + "puts(*messages)",
           TAB + "return",
           "end"
         ].join("\n"));

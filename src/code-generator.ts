@@ -458,7 +458,6 @@ export default class CodeGenerator extends StringBuilder {
       case SyntaxKind.ArrowFunction: {
         const arrowFunction = <ArrowFunction>node;
 
-        // TODO: disallow call expressions on arrow functions directly
         this.append("def ");
         this.append(this.meta.arrowFunctionName!);
         this.resetMeta("arrowFunctionName");

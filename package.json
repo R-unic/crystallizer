@@ -6,7 +6,7 @@
   "bin": "dist/main.js",
   "scripts": {
     "start": "node dist/main.js",
-    "test": "cd runtime_lib && shards install && crystal spec -v && rm -rf shard.lock && rm -rf lib/ && cd .. && mocha dist/tests"
+    "test": "cd runtime_lib && shards install && cd .. && mocha dist/tests && cd runtime_lib && crystal spec -v --fail-fast && rm -rf shard.lock && rm -rf lib/"
   },
   "repository": {
     "type": "git",
