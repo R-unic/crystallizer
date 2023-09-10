@@ -4,10 +4,11 @@ import "should";
 
 import CodeGenerator from "../code-generator"
 
-const TAB = " ".repeat(4);
+const TAB_SIZE = 2;
+const TAB = " ".repeat(TAB_SIZE);
 function testGenerate(sourceCode: string): string {
   const sourceFile = ts.createSourceFile(__filename, sourceCode, ts.ScriptTarget.ES2015);
-  return new CodeGenerator(sourceFile, true)
+  return new CodeGenerator(sourceFile, true, TAB_SIZE)
     .generate()
     .split("\n")
     .filter(line => line.trim() !== "")
