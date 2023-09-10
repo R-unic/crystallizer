@@ -1,15 +1,11 @@
-name: crystallizer_runtime_lib
+name: crystallizer_emitted_code
 version: 0.1.0
 
 authors:
-  - R-unic <roleyspersonal@gmail.com>
+  - You
 
 crystal: ">= 1.8.2"
 license: MIT
-
-targets:
-  runtime_lib:
-    main: main.cr
 
 dependencies:
   await_async:
