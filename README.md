@@ -54,7 +54,6 @@ await main
   - for..in
   - macro the rest of the `console` library
   - macro the `??` operator
-  - tab size option
   - emit comments
   - disallow:
     - call expressions on arrow functions directly

@@ -2,6 +2,10 @@ export default class StringBuilder {
   protected indentation = 0;
   private readonly parts: string[] = [];
 
+  public constructor(
+    private readonly tabSize: number
+  ) {}
+
   protected get generated(): string {
     return this.parts.join("");
   }
@@ -27,6 +31,6 @@ export default class StringBuilder {
   }
 
   protected newLine(amount = 1): void {
-    this.append(("\n" + "    ".repeat(this.indentation)).repeat(amount));
+    this.append(("\n" + " ".repeat(this.tabSize).repeat(this.indentation)).repeat(amount));
   }
 }

@@ -83,8 +83,9 @@ export default class CodeGenerator extends StringBuilder {
 
   public constructor(
     private readonly sourceNode: SourceFile,
-    private readonly testing = false
-  ) { super(); }
+    private readonly testing = false,
+    tabSize = 2
+  ) { super(tabSize); }
 
   public generate(): string {
     if (!this.testing) {
