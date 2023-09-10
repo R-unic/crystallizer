@@ -73,40 +73,7 @@ import StringBuilder from "./string-builder";
 
 import TYPE_MAP from "./type-map";
 import BINARY_OPERATOR_MAP from "./binary-operator-map";
-
-interface MetaValues extends Record<string, unknown> {
-  currentArrayType?: string;
-  currentHashKeyType?: string;
-  currentHashValueType?: string;
-  currentlyDeclaring?: string;
-  blockParameter?: string;
-  arrowFunctionName?: string;
-  publicClassProperties: ParameterDeclaration[];
-  allFunctionIdentifiers: string[];
-  asyncFunctionIdentifiers: string[];
-  inGlobalScope: boolean;
-  inSwitchStatement: boolean;
-  inBlock: boolean;
-  spreadParameter: boolean;
-  bindingCount: number;
-}
-
-const DEFAULT_META: MetaValues = {
-  currentArrayType: undefined,
-  currentHashKeyType: undefined,
-  currentHashValueType: undefined,
-  currentlyDeclaring: undefined,
-  blockParameter: undefined,
-  arrowFunctionName: undefined,
-  publicClassProperties: [],
-  allFunctionIdentifiers: [...Constants.REVERSE_ARGS_GLOBAL_FUNCTIONS, "parseInt", "parseFloat"], // TODO: make this (and the below field) a property of the Crystallizer class instead to track function identifiers across all files, import these in
-  asyncFunctionIdentifiers: [],
-  inGlobalScope: true,
-  inSwitchStatement: false,
-  spreadParameter: false,
-  inBlock: false,
-  bindingCount: 0
-};
+import { DEFAULT_META, MetaValues } from "./code-generator-meta";
 
 export default class CodeGenerator extends StringBuilder {
   private readonly flags: string[] = [];
@@ -170,9 +137,9 @@ export default class CodeGenerator extends StringBuilder {
         break;
       }
       case SyntaxKind.VariableDeclarationList: {
-        const declarationList = <VariableDeclarationList>node;
-        this.walkFlag(declarationList.flags);
-        for (const declaration of declarationList.declarations)
+        const { flags, declarations } = <VariableDeclarationList>node;
+        this.walkFlag(flags);
+        for (const declaration of declarations)
           this.walk(declaration);
 
         break;
