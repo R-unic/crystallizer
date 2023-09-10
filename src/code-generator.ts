@@ -48,12 +48,12 @@ import {
   ArrowFunction,
   ImportDeclaration,
   ConditionalExpression,
-  BindingName,
   SpreadElement,
   FunctionTypeNode,
+  BindingName,
   ArrayBindingPattern,
-  BindingElement,
   ObjectBindingPattern,
+  BindingElement,
   TryStatement,
   ThrowStatement,
   ModuleDeclaration,
@@ -73,7 +73,7 @@ import StringBuilder from "./string-builder";
 
 import TYPE_MAP from "./type-map";
 import BINARY_OPERATOR_MAP from "./binary-operator-map";
-import { DEFAULT_META, MetaValues } from "./code-generator-meta";
+import { Context, DEFAULT_META, MetaValues } from "./code-generator-meta";
 
 export default class CodeGenerator extends StringBuilder {
   private readonly flags: string[] = [];
@@ -298,7 +298,7 @@ export default class CodeGenerator extends StringBuilder {
           if (functionName[0] !== functionName[0].toLowerCase())
             return this.error(call.expression, "Function names cannot begin with capital letters.", "FunctionBeganWithCapital");
 
-          if (this.meta.inGlobalScope && this.meta.asyncFunctionIdentifiers.includes(functionName))
+          if (this.meta.currentContext === Context.Global && this.meta.asyncFunctionIdentifiers.includes(functionName))
             this.append("await ");
 
           const reverseGlobalArgs = Constants.REVERSE_ARGS_GLOBAL_FUNCTIONS.includes(functionName) && !isPropertyAccess;
@@ -764,8 +764,8 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.SwitchStatement: {
         const switchStatement = <SwitchStatement>node;
-        const enclosingIsInSwitchStatement = this.meta.inSwitchStatement;
-        this.meta.inSwitchStatement = true;
+        const enclosingContext = this.meta.currentContext;
+        this.meta.currentContext = Context.SwitchStatement;
 
         this.append("case ");
         this.walk(switchStatement.expression);
@@ -773,7 +773,7 @@ export default class CodeGenerator extends StringBuilder {
 
         this.append("end");
         this.newLine();
-        this.meta.inSwitchStatement = enclosingIsInSwitchStatement;
+        this.meta.currentContext = enclosingContext;
         break;
       }
       case SyntaxKind.WithStatement: {
@@ -875,8 +875,6 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.CaseBlock: {
         const caseBlock = <CaseBlock>node;
-        const enclosingIsInScope = this.meta.inGlobalScope;
-        this.meta.inGlobalScope = false;
         this.newLine();
 
         for (const clause of caseBlock.clauses) {
@@ -891,7 +889,6 @@ export default class CodeGenerator extends StringBuilder {
           this.newLine();
         }
 
-        this.meta.inGlobalScope = enclosingIsInScope;
         break;
       }
       case SyntaxKind.ModuleBlock: {
@@ -984,12 +981,11 @@ export default class CodeGenerator extends StringBuilder {
   }
 
   private appendBlock<T extends Node & { statements: NodeArray<Statement> }>(node: T, module = false): void {
-    const enclosingIsInBlock = this.meta.inBlock;
-    this.meta.inBlock = true;
+    const enclosingContext = this.meta.currentContext;
+    const lastContextIsNotBlock = enclosingContext !== Context.Block;
+    this.meta.currentContext = Context.Block;
 
-    const enclosingIsInScope = this.meta.inGlobalScope;
-    this.meta.inGlobalScope = false;
-    if (!enclosingIsInBlock) {
+    if (lastContextIsNotBlock) {
       this.pushIndentation();
       this.newLine();
     }
@@ -1002,11 +998,10 @@ export default class CodeGenerator extends StringBuilder {
     for (const statement of node.statements)
       this.walk(statement);
 
-    if (!enclosingIsInBlock)
+    if (lastContextIsNotBlock)
       this.popIndentation();
 
-    this.meta.in1cope = enclosingIsInScope;
-    this.meta.inBlock = enclosingIsInBlock;
+    this.meta.currentContext = enclosingContext;
   }
 
   private appendCallExpressionArguments(callArguments: NodeArray<Expression> | Expression[], blockParameter: boolean): void {
@@ -1153,15 +1148,15 @@ export default class CodeGenerator extends StringBuilder {
     }
 
     if (body) {
-      const enclosingIsInGlobalScope = this.meta.inGlobalScope
-      this.meta.inGlobalScope = false;
+      const enclosingContext = this.meta.currentContext;
+      this.meta.currentContext = Context.FunctionBody;
       this.walk(body);
 
       const returned = this.consumeFlag("Returned");
       if (!returned)
         this.append("return");
 
-      this.meta.inGlobalScope = enclosingIsInGlobalScope;
+      this.meta.currentContext = enclosingContext;
     }
 
     if (isAsync) {
