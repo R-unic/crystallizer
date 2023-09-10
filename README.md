@@ -1,6 +1,40 @@
 ![build](https://github.com/R-unic/crystallizer/actions/workflows/test.yml/badge.svg)
 # Crystallizer
-A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with all the speed and compatibility of Crystal.
+A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with the speed and portability of Crystal.
+
+# Example
+```ts
+// examples/async-await/src/test.ts
+
+async function myAsyncFunction(): Promise<string> {
+  return "Hello!";
+}
+
+async function main(): Promise<void> {
+  myAsyncFunction() // you can also use await here of course
+    .then(res => console.log(res));
+}
+
+main();
+```
+```cr
+# examples/async-await/dist/test.cr
+
+private def myAsyncFunction : MiniFuture(String)
+  async! do
+    return "Hello!"
+  end
+end
+private def main : MiniFuture(Nil)
+  async! do
+    myAsyncFunction.then do |res|
+      puts(res)
+    end
+    return
+  end
+end
+await main
+```
 
 # Usage
 * All of the below instructions are temporary.
@@ -19,6 +53,9 @@ A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with a
   - destructuring (this is so much harder than it needs to be)
   - for..in
   - macro the rest of the `console` library
+  - macro the `??` operator
+  - tab size option
+  - emit comments
   - disallow:
     - call expressions on arrow functions directly
     - type parameters in function types

@@ -3,7 +3,7 @@ async function myAsyncFunction(): Promise<string> {
 }
 
 async function main(): Promise<void> {
-  myAsyncFunction()
+  myAsyncFunction() // you can also use await here of course
     .then(res => console.log(res));
 }
 
