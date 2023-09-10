@@ -70,6 +70,7 @@ import Util from "./utility";
 import Constants from "./constants";
 import Log from "./logger";
 import StringBuilder from "./string-builder";
+import AccessMacros from "./access-macros";
 
 import TYPE_MAP from "./type-map";
 import BINARY_OPERATOR_MAP from "./binary-operator-map";
@@ -78,6 +79,7 @@ import { Context, DEFAULT_META, MetaValues } from "./code-generator-meta";
 export default class CodeGenerator extends StringBuilder {
   private readonly flags: string[] = [];
   private readonly meta = structuredClone(DEFAULT_META);
+  private readonly accessMacros = new AccessMacros(this);
 
   public constructor(
     private readonly sourceNode: SourceFile,
@@ -231,22 +233,21 @@ export default class CodeGenerator extends StringBuilder {
         const access = <PropertyAccessExpression>node;
         const objectText = access.expression.getText(this.sourceNode);
         const propertyNameText = access.name.getText(this.sourceNode);
-        if (objectText === "console")
-          if (propertyNameText === "log") {
-            this.append("puts");
-            break;
-          }
+        if (this.accessMacros.matchesCompleteReplace(objectText, propertyNameText)) {
+          this.accessMacros.completeReplace(objectText, propertyNameText);
+          break; // don't continue
+        }
 
         this.walk(access.expression);
         this.append(access.expression.kind === SyntaxKind.ThisKeyword ? "" : ".");
-        if (propertyNameText === "toString") {
-          this.append("to_s");
-          break;
+        if (this.accessMacros.matchesKeyReplace(propertyNameText)) {
+          this.accessMacros.keyReplace(propertyNameText);
+          break; // don't continue
         }
 
         this.walk(access.name);
-        if (propertyNameText === "floor")
-          this.append(".to_i");
+        if (this.accessMacros.matchesExtension(propertyNameText))
+          this.accessMacros.addExtension(propertyNameText);
 
         break;
       }
@@ -257,23 +258,23 @@ export default class CodeGenerator extends StringBuilder {
 
         const objectText = access.expression.getText(this.sourceNode);
         const indexText = access.argumentExpression.getText(this.sourceNode);
-        if (objectText === "console")
-          if (indexText === '"log"') {
-            this.append("puts");
-            break;
-          }
+        if (this.accessMacros.matchesCompleteReplace(objectText, indexText.substring(1, -2))) {
+          this.accessMacros.completeReplace(objectText, indexText.substring(1, -2));
+          break; // don't continue
+        }
 
         this.walk(access.expression);
-        if (indexText === '"toString"') {
-          this.append(".to_s");
-          break;
+        if (this.accessMacros.matchesKeyReplace(indexText.substring(1, -2))) {
+          this.append(".");
+          this.accessMacros.keyReplace(indexText.substring(1, -2));
+          break; // don't continue
         }
 
         this.append("[");
         this.walk(access.argumentExpression);
         this.append("]");
-        if (indexText === '"floor"')
-          this.append(".to_i");
+        if (this.accessMacros.matchesExtension(indexText.substring(1, -2)))
+          this.accessMacros.addExtension(indexText.substring(1, -2));
 
         break;
       }
@@ -1311,7 +1312,6 @@ export default class CodeGenerator extends StringBuilder {
       }
 
       case SyntaxKind.FunctionType: {
-        // TODO: type parameters
         const functionType = <FunctionTypeNode>type;
         if (functionType.parameters.length > 0)
           for (const param of functionType.parameters) {

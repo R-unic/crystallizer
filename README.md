@@ -18,8 +18,10 @@ A TypeScript to Crystal compiler. All the beauty and power of TypeScript, with a
   - ignore advanced type generics (T extends, ternary operator, initializers)
   - destructuring (this is so much harder than it needs to be)
   - for..in
+  - macro the rest of the `console` library
   - disallow:
     - call expressions on arrow functions directly
+    - type parameters in function types
 - polyfills:
   - `String` (😭)
   - `Object`
