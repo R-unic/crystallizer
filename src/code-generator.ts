@@ -704,6 +704,7 @@ export default class CodeGenerator extends StringBuilder {
           this.popIndentation();
 
         if (ifStatement.elseStatement) {
+          this.popLastPart();
           this.newLine();
           this.append(ifStatement.elseStatement.kind === SyntaxKind.IfStatement ? "els" : "else");
 
@@ -983,13 +984,9 @@ export default class CodeGenerator extends StringBuilder {
 
   private appendBlock<T extends Node & { statements: NodeArray<Statement> }>(node: T, module = false): void {
     const enclosingContext = this.meta.currentContext;
-    const lastContextIsNotBlock = enclosingContext !== Context.Block;
     this.meta.currentContext = Context.Block;
-
-    if (lastContextIsNotBlock) {
-      this.pushIndentation();
-      this.newLine();
-    }
+    this.pushIndentation();
+    this.newLine();
 
     if (module) {
       this.append("extend self");
@@ -999,9 +996,7 @@ export default class CodeGenerator extends StringBuilder {
     for (const statement of node.statements)
       this.walk(statement);
 
-    if (lastContextIsNotBlock)
-      this.popIndentation();
-
+    this.popIndentation();
     this.meta.currentContext = enclosingContext;
   }
 

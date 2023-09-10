@@ -62,3 +62,5 @@ await main
   - `String` (😭)
   - `Object`
   - `Promise`
+- test:
+  - if statements with `else`/`elsif` branches
