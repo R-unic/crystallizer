@@ -59,6 +59,8 @@ import {
   ThrowStatement,
   ModuleDeclaration,
   ModuleBlock,
+  EnumDeclaration,
+  EnumMember,
   Statement,
   HeritageClause,
   SwitchStatement,
@@ -469,6 +471,34 @@ export default class CodeGenerator extends StringBuilder {
       }
 
       // CLASS STUFF STATEMENTS
+      case SyntaxKind.EnumDeclaration: {
+        const declaration = <EnumDeclaration>node;
+        this.walkModifiers(declaration);
+        this.append("enum ");
+        this.walk(declaration.name);
+        this.pushIndentation();
+        this.newLine();
+
+        for (const member of declaration.members)
+          this.walk(member);
+
+        this.popIndentation();
+        this.newLine();
+        this.append("end");
+        this.newLine();
+        break;
+      }
+      case SyntaxKind.EnumMember: {
+        const member = <EnumMember>node;
+        this.walk(member.name);
+        if (member.initializer) {
+          this.append(" = ");
+          this.walk(member.initializer);
+        }
+
+        this.newLine();
+        break;
+      }
       case SyntaxKind.InterfaceDeclaration: {
         return this.error(node, "Interfaces are not supported.", "UnsupportedInterfaces")
       }
