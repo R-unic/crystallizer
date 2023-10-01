@@ -1,11 +1,16 @@
 import { BindingName, ParameterDeclaration, PropertyName, TypeNode } from "typescript";
 import Constants from "./constants";
 
+
+
+
 export const enum Context {
   Global,
-  SwitchStatement,
+  Block,
   FunctionBody,
-  Block
+  SwitchStatement,
+  EnumBody,
+  ClassBody
 }
 
 export interface MetaValues extends Record<string, unknown> {
@@ -17,8 +22,8 @@ export interface MetaValues extends Record<string, unknown> {
   arrowFunctionName?: string;
   publicClassProperties: ParameterDeclaration[];
   protectedClassProperties: { name: BindingName | PropertyName; type?: TypeNode }[];
-  allFunctionIdentifiers: string[];
-  asyncFunctionIdentifiers: string[];
+  allFunctionIdentifiers: Set<string>;
+  asyncFunctionIdentifiers: Set<string>;
   spreadParameter: boolean;
   // bindingCount: number;
 }
@@ -32,8 +37,8 @@ export const DEFAULT_META: MetaValues = {
   arrowFunctionName: undefined,
   publicClassProperties: [],
   protectedClassProperties: [],
-  allFunctionIdentifiers: [...Constants.REVERSE_ARGS_GLOBAL_FUNCTIONS, "parseInt", "parseFloat"],
-  asyncFunctionIdentifiers: [],
+  allFunctionIdentifiers: new Set<string>([...Constants.REVERSE_ARGS_GLOBAL_FUNCTIONS, "parseInt", "parseFloat"]),
+  asyncFunctionIdentifiers: new Set<string>(),
   spreadParameter: false
   // bindingCount: 0
 };

@@ -187,7 +187,7 @@ export class Lexer extends ArrayStepper<string> {
           return this.addToken(Syntax.EQUAL, undefined, true);
       }
 
-      case '"':
+      case "\"":
       case "'":
         return this.readString();
 
@@ -254,8 +254,8 @@ export class Lexer extends ArrayStepper<string> {
   }
 
 
-  private addToken<T extends ValueType = ValueType>(type: Syntax, value?: T, advance = false): void {
-    if (advance)
+  private addToken<T extends ValueType = ValueType>(type: Syntax, value?: T, doAdvance = false): void {
+    if (doAdvance)
       this.advance();
 
     const locationSpan = new LocationSpan(this.lastLocation, this.currentLocation);

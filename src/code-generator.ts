@@ -236,17 +236,19 @@ export default class CodeGenerator extends StringBuilder {
         const access = <PropertyAccessExpression>node;
         const objectText = access.expression.getText(this.sourceNode);
         const propertyNameText = access.name.getText(this.sourceNode);
-        if (this.accessMacros.matchesCompleteReplace(objectText, propertyNameText)) {
-          this.accessMacros.completeReplace(objectText, propertyNameText);
-          break; // don't continue
-        }
+        const accessingThis = objectText === "this";
+        if (this.accessMacros.matchesCompleteReplace(objectText, propertyNameText))
+          return this.accessMacros.completeReplace(objectText, propertyNameText);
 
         this.walk(access.expression);
-        this.append(access.expression.kind === SyntaxKind.ThisKeyword ? "" : ".");
-        if (this.accessMacros.matchesKeyReplace(propertyNameText)) {
-          this.accessMacros.keyReplace(propertyNameText);
-          break; // don't continue
+        if (accessingThis && this.meta.allFunctionIdentifiers.has(propertyNameText)) {
+          this.popLastPart();
+          this.append("self")
         }
+
+        this.append(this.peekLastPart() === "@" ? "" : ".");
+        if (this.accessMacros.matchesKeyReplace(propertyNameText))
+          return this.accessMacros.keyReplace(propertyNameText);
 
         this.walk(access.name);
         if (this.accessMacros.matchesExtension(propertyNameText))
@@ -261,23 +263,30 @@ export default class CodeGenerator extends StringBuilder {
 
         const objectText = access.expression.getText(this.sourceNode);
         const indexText = access.argumentExpression.getText(this.sourceNode);
-        if (this.accessMacros.matchesCompleteReplace(objectText, indexText.substring(1, -2))) {
-          this.accessMacros.completeReplace(objectText, indexText.substring(1, -2));
+        const indexStringContent = indexText.substring(1, -2);
+        const accessingThis = objectText === "this";
+        if (accessingThis && this.meta.allFunctionIdentifiers.has(indexStringContent)) {
+          this.popLastPart();
+          this.append("self");
+        }
+
+        if (this.accessMacros.matchesCompleteReplace(objectText, indexStringContent)) {
+          this.accessMacros.completeReplace(objectText, indexStringContent);
           break; // don't continue
         }
 
         this.walk(access.expression);
-        if (this.accessMacros.matchesKeyReplace(indexText.substring(1, -2))) {
+        if (this.accessMacros.matchesKeyReplace(indexStringContent)) {
           this.append(".");
-          this.accessMacros.keyReplace(indexText.substring(1, -2));
+          this.accessMacros.keyReplace(indexStringContent);
           break; // don't continue
         }
 
         this.append("[");
         this.walk(access.argumentExpression);
         this.append("]");
-        if (this.accessMacros.matchesExtension(indexText.substring(1, -2)))
-          this.accessMacros.addExtension(indexText.substring(1, -2));
+        if (this.accessMacros.matchesExtension(indexStringContent))
+          this.accessMacros.addExtension(indexStringContent);
 
         break;
       }
@@ -303,7 +312,7 @@ export default class CodeGenerator extends StringBuilder {
           if (functionName[0] !== functionName[0].toLowerCase())
             return this.error(call.expression, "Function names cannot begin with capital letters.", "FunctionBeganWithCapital");
 
-          if (this.meta.currentContext === Context.Global && this.meta.asyncFunctionIdentifiers.includes(functionName))
+          if (this.meta.currentContext === Context.Global && this.meta.asyncFunctionIdentifiers.has(functionName))
             this.append("await ");
 
           const reverseGlobalArgs = Constants.REVERSE_ARGS_GLOBAL_FUNCTIONS.includes(functionName) && !isPropertyAccess;
@@ -487,6 +496,8 @@ export default class CodeGenerator extends StringBuilder {
         this.pushIndentation();
         this.newLine();
 
+        const enclosingContext = this.meta.currentContext;
+        this.meta.currentContext = Context.EnumBody;
         for (const member of declaration.members)
           this.walk(member);
 
@@ -494,6 +505,7 @@ export default class CodeGenerator extends StringBuilder {
         this.newLine();
         this.append("end");
         this.newLine();
+        this.meta.currentContext = enclosingContext;
         break;
       }
       case SyntaxKind.EnumMember: {
@@ -537,6 +549,10 @@ export default class CodeGenerator extends StringBuilder {
         const declaration = <ClassDeclaration>node;
         this.appendClassDeclaration(
           () => {
+            for (const member of declaration.members) // add names first
+              if (member.kind === SyntaxKind.MethodDeclaration)
+                this.meta.allFunctionIdentifiers.add((<Identifier>member.name).text);
+
             for (const member of declaration.members)
               this.walk(member);
           },
@@ -564,6 +580,7 @@ export default class CodeGenerator extends StringBuilder {
           this.walkType(signature.type);
         }
 
+        this.newLine();
         break;
       }
       case SyntaxKind.PropertyDeclaration: {
@@ -706,6 +723,9 @@ export default class CodeGenerator extends StringBuilder {
         if (!bodyIsBlock)
           this.popIndentation();
 
+        if (this.peekLastPart().includes("\n"))
+          this.popLastPart();
+
         this.newLine();
         this.append("end");
         this.newLine();
@@ -732,6 +752,9 @@ export default class CodeGenerator extends StringBuilder {
         this.walk(whileStatement.statement);
         if (!bodyIsBlock)
           this.popIndentation();
+
+        if (this.peekLastPart().includes("\n"))
+          this.popLastPart();
 
         this.newLine();
         this.append("end");
@@ -760,10 +783,13 @@ export default class CodeGenerator extends StringBuilder {
         if (!thenBodyIsBlock)
           this.popIndentation();
 
-        if (ifStatement.elseStatement) {
+        if (this.peekLastPart().includes("\n"))
           this.popLastPart();
+
+        if (ifStatement.elseStatement) {
+          const elseBranchIsIf = ifStatement.elseStatement.kind === SyntaxKind.IfStatement;
           this.newLine();
-          this.append(ifStatement.elseStatement.kind === SyntaxKind.IfStatement ? "els" : "else");
+          this.append("else");
 
           const elseBodyIsBlock = ifStatement.elseStatement.kind === SyntaxKind.Block;
           if (!elseBodyIsBlock) {
@@ -775,6 +801,9 @@ export default class CodeGenerator extends StringBuilder {
           if (!elseBodyIsBlock)
             this.popIndentation();
         }
+
+        if (this.peekLastPart().includes("\n"))
+          this.popLastPart();
 
         this.newLine();
         this.append("end");
@@ -809,16 +838,21 @@ export default class CodeGenerator extends StringBuilder {
           this.walk(tryStatement.finallyBlock);
           this.popLastPart();
           this.popIndentation();
-          this.newLine();
         }
 
+        if (this.peekLastPart().includes("\n"))
+          this.popLastPart();
+
+        this.newLine();
         this.append("end");
+        this.newLine();
         break;
       }
       case SyntaxKind.ThrowStatement: {
         const throwStatement = <ThrowStatement>node;
         this.append("raise ");
         this.walk(throwStatement.expression);
+        this.newLine();
         break;
       }
       case SyntaxKind.SwitchStatement: {
@@ -917,7 +951,7 @@ export default class CodeGenerator extends StringBuilder {
         break;
       }
       case SyntaxKind.RegularExpressionLiteral: {
-        this.append(`/${(<RegularExpressionLiteral>node).text}/`);
+        this.append(`TsRegex.new(${(<RegularExpressionLiteral>node).text})`);
         break;
       }
       case SyntaxKind.TemplateExpression: {
@@ -935,7 +969,7 @@ export default class CodeGenerator extends StringBuilder {
         break;
       }
       case SyntaxKind.StringLiteral: {
-        this.append(`"${(<StringLiteral>node).text}"`);
+        this.append((<StringLiteral>node).getFullText(this.sourceNode).trim());
         break;
       }
       case SyntaxKind.TrueKeyword: {
@@ -954,16 +988,24 @@ export default class CodeGenerator extends StringBuilder {
         const caseBlock = <CaseBlock>node;
         this.newLine();
 
+        let lastEmpty = false;
         for (const clause of caseBlock.clauses) {
           if (isCaseClause(clause)) {
-            this.append("when ");
+            if (!lastEmpty)
+              this.append("when ");
+
+            if (lastEmpty)
+              this.append(", ");
+
             this.walk(clause.expression);
           } else
             this.append("else");
 
-          this.appendBlock(clause);
-          this.popLastPart();
-          this.newLine();
+          lastEmpty = clause.statements.length === 0;
+          if (!lastEmpty) {
+            this.appendBlock(clause);
+            this.newLine();
+          }
         }
 
         break;
@@ -1064,6 +1106,8 @@ export default class CodeGenerator extends StringBuilder {
       this.newLine();
     }
 
+    const enclosingContext = this.meta.currentContext;
+    this.meta.currentContext = Context.ClassBody;
     walkMembers();
     if (this.meta.publicClassProperties.length > 0)
       this.newLine();
@@ -1109,6 +1153,7 @@ export default class CodeGenerator extends StringBuilder {
     this.newLine();
     this.append("end");
     this.newLine();
+    this.meta.currentContext = enclosingContext
   }
 
   private appendBlock<T extends Node & { statements: NodeArray<Statement> }>(node: T, module = false): void {
@@ -1137,7 +1182,7 @@ export default class CodeGenerator extends StringBuilder {
 
       this.append("(");
       for (const arg of callArguments)
-        if (arg.kind === SyntaxKind.Identifier && this.meta.allFunctionIdentifiers.includes((<Identifier>arg).text)) {
+        if (arg.kind === SyntaxKind.Identifier && this.meta.allFunctionIdentifiers.has((<Identifier>arg).text)) {
           if (providedBlock || providedArrowFunction)
             this.error(arg, "Functions may only have one function argument.", "MultipleFunctionsPassed");
 
@@ -1188,6 +1233,7 @@ export default class CodeGenerator extends StringBuilder {
   }
 
   private handleExporting(): void {
+    if (this.meta.currentContext !== Context.Global) return;
     const isExported = this.consumeFlag("Export");
     if (!isExported)
       this.append("private ");
@@ -1210,7 +1256,7 @@ export default class CodeGenerator extends StringBuilder {
     body?: Block
   ) {
 
-    this.meta.allFunctionIdentifiers.push(typeof name === "string" ? name : name.text);
+    this.meta.allFunctionIdentifiers.add(typeof name === "string" ? name : name.text);
     this.walkModifierList(modifiers?.values(), false);
     const modifierKinds = modifiers?.map(mod => mod.kind);
 
@@ -1268,7 +1314,7 @@ export default class CodeGenerator extends StringBuilder {
 
     const isAsync = this.consumeFlag("Async");
     if (isAsync) {
-      this.meta.asyncFunctionIdentifiers.push(typeof name === "string" ? name : name.text);
+      this.meta.asyncFunctionIdentifiers.add(typeof name === "string" ? name : name.text);
       this.pushIndentation();
       this.newLine();
       this.append("async! do");
@@ -1484,8 +1530,15 @@ export default class CodeGenerator extends StringBuilder {
   }
 
   private getMappedIdentifier(text: string): string {
-    return text
-      .replace(/Error/, "Exception");
+    const replaced = text
+      .replace(/Error/, "Exception")
+      .replace(/undefined/, "nil")
+      .replace(/null/, "nil");
+
+    if (/^[A-Z_]+$/.test(replaced) && this.meta.currentContext === Context.Global)
+      return replaced.toLowerCase();
+    else
+      return replaced;
   }
 
   private getMappedType(text: string): string {
