@@ -542,9 +542,16 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.PropertySignature: {
         const signature = <PropertySignature>node;
-        this.walkModifiers(signature);
-        this.walk(signature.name);
+        const modifierKinds = signature.modifiers?.map(mod => mod.kind);
 
+        this.walkModifiers(signature);
+        if (modifierKinds?.includes(SyntaxKind.ProtectedKeyword))
+          this.meta.protectedClassProperties.push({
+            name: signature.name,
+            type: signature.type
+          });
+
+        this.walk(signature.name);
         if (signature.type) {
           this.append(" : ");
           this.walkType(signature.type);
@@ -554,9 +561,16 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.PropertyDeclaration: {
         const declaration = <PropertyDeclaration>node;
-        this.walkModifiers(declaration);
-        this.walk(declaration.name);
+        const modifierKinds = declaration.modifiers?.map(mod => mod.kind);
 
+        this.walkModifiers(declaration);
+        if (modifierKinds?.includes(SyntaxKind.ProtectedKeyword))
+          this.meta.protectedClassProperties.push({
+            name: declaration.name,
+            type: declaration.type
+          });
+
+        this.walk(declaration.name);
         if (declaration.type) {
           this.append(" : ");
           this.walkType(declaration.type);
@@ -567,6 +581,7 @@ export default class CodeGenerator extends StringBuilder {
           this.walk(declaration.initializer);
         }
 
+        this.newLine();
         break;
       }
       case SyntaxKind.MethodSignature: {
@@ -1018,8 +1033,32 @@ export default class CodeGenerator extends StringBuilder {
       if (Util.isNotLast(publicProperty, this.meta.publicClassProperties))
         this.newLine();
     }
-
     this.meta.publicClassProperties = [];
+
+    if (this.meta.protectedClassProperties.length > 0)
+      this.newLine();
+
+    for (const protectedProperty of this.meta.protectedClassProperties) {
+      this.append("protected def ");
+      this.walk(protectedProperty.name);
+      if (protectedProperty.type) {
+        this.append(" : ");
+        this.walkType(protectedProperty.type);
+      }
+
+      this.pushIndentation();
+      this.newLine();
+      this.append("@");
+      this.walk(protectedProperty.name);
+      this.popIndentation();
+      this.newLine();
+      this.append("end");
+
+      if (Util.isNotLast(protectedProperty, this.meta.protectedClassProperties))
+        this.newLine();
+    }
+    this.meta.protectedClassProperties = [];
+
     this.popIndentation();
     this.newLine();
     this.append("end");
@@ -1148,15 +1187,18 @@ export default class CodeGenerator extends StringBuilder {
       this.append("(");
       for (const param of parameters) {
         const modifierTypes = param.modifiers?.map(mod => mod.kind) ?? [];
-        const isPublic = modifierTypes.includes(SyntaxKind.PublicKeyword);
-        const isStatic = modifierTypes.includes(SyntaxKind.StaticKeyword);
-        if (isPublic)
+        if (modifierTypes.includes(SyntaxKind.PublicKeyword))
           this.meta.publicClassProperties.push(param);
-        if (Constants.CLASS_MODIFIERS.includes(modifierTypes[0]))
-          if (isStatic)
-            this.append("@@");
-          else
-            this.append("@");
+        else if (modifierTypes.includes(SyntaxKind.ProtectedKeyword))
+          this.meta.protectedClassProperties.push({
+            name: param.name,
+            type: param.type
+          });
+        else if (modifierTypes.includes(SyntaxKind.StaticKeyword))
+          this.append("@@");
+        else
+          this.append("@");
+
 
         this.walk(param);
         if (Util.isNotLast(param, parameters))
@@ -1252,6 +1294,10 @@ export default class CodeGenerator extends StringBuilder {
           this.append(isProperty ? "@" : "private ");
           break;
         }
+        case SyntaxKind.ProtectedKeyword: {
+          this.append(isProperty ? "@" : "protected ");
+          break;
+        }
         case SyntaxKind.PublicKeyword: {
           this.append(isProperty ? "property " : "");
           break;
@@ -1308,6 +1354,7 @@ export default class CodeGenerator extends StringBuilder {
         this.append("Bool");
         break;
       }
+      case SyntaxKind.UndefinedKeyword:
       case SyntaxKind.VoidKeyword: {
         this.append("Nil");
         break;

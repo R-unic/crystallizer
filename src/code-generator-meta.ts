@@ -1,4 +1,4 @@
-import { ParameterDeclaration } from "typescript";
+import { BindingName, ParameterDeclaration, PropertyName, TypeNode } from "typescript";
 import Constants from "./constants";
 
 export const enum Context {
@@ -16,6 +16,7 @@ export interface MetaValues extends Record<string, unknown> {
   blockParameter?: string;
   arrowFunctionName?: string;
   publicClassProperties: ParameterDeclaration[];
+  protectedClassProperties: { name: BindingName | PropertyName; type?: TypeNode }[];
   allFunctionIdentifiers: string[];
   asyncFunctionIdentifiers: string[];
   spreadParameter: boolean;
@@ -30,6 +31,7 @@ export const DEFAULT_META: MetaValues = {
   blockParameter: undefined,
   arrowFunctionName: undefined,
   publicClassProperties: [],
+  protectedClassProperties: [],
   allFunctionIdentifiers: [...Constants.REVERSE_ARGS_GLOBAL_FUNCTIONS, "parseInt", "parseFloat"],
   asyncFunctionIdentifiers: [],
   spreadParameter: false
