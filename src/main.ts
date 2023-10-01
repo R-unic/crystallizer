@@ -19,7 +19,7 @@ const app = command({
     init: flag({ type: boolean, long: "init", short: "i", description: "Intialize a new Crystallizer project" })
   },
   handler: ({ rootDirectory, init }) => {
-    rootDirectory ??= path.relative(path.dirname(__dirname), process.cwd());
+    rootDirectory ??= process.cwd();
     if (init)
       initializeProject(rootDirectory);
     else {

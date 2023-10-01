@@ -34,6 +34,7 @@ import {
   ForStatement,
   PostfixUnaryExpression,
   ClassDeclaration,
+  SuperCall,
   ExpressionWithTypeArguments,
   PropertyDeclaration,
   PropertySignature,
@@ -171,15 +172,7 @@ export default class CodeGenerator extends StringBuilder {
       case SyntaxKind.ExpressionWithTypeArguments: {
         const typedExpression = <ExpressionWithTypeArguments>node;
         this.walk(typedExpression.expression);
-        if (typedExpression.typeArguments) {
-          this.append("(");
-          for (const typeArg of typedExpression.typeArguments) {
-            this.walkType(typeArg);
-            if (Util.isNotLast(typeArg, typedExpression.typeArguments))
-              this.append(", ");
-          }
-          this.append(")");
-        }
+        this.walkTypeArguments(typedExpression.typeArguments);
         break;
       }
       case SyntaxKind.ParenthesizedExpression: {
@@ -323,17 +316,7 @@ export default class CodeGenerator extends StringBuilder {
         const newExpression = <NewExpression>node;
         this.walk(newExpression.expression);
         this.append(".new");
-        if (newExpression.arguments && newExpression.arguments.length > 0) {
-          this.append("(");
-          for (const arg of newExpression.arguments) {
-            this.walk(arg);
-            if (Util.isNotLast(arg, newExpression.arguments))
-              this.append(", ");
-          }
-
-          this.append(")");
-        }
-
+        this.walkArguments(newExpression.arguments);
         break;
       }
       case SyntaxKind.AwaitExpression: {
@@ -500,6 +483,12 @@ export default class CodeGenerator extends StringBuilder {
           constructor.body
         );
 
+        break;
+      }
+      case SyntaxKind.SuperKeyword: {
+        const superCall = <SuperCall>node;
+        this.append("super");
+        this.walkArguments(superCall.arguments);
         break;
       }
       case SyntaxKind.ThisKeyword: {
@@ -919,6 +908,30 @@ export default class CodeGenerator extends StringBuilder {
     }
   }
 
+  private walkTypeArguments(typeArgs?: NodeArray<TypeNode> | undefined): void {
+    if (!typeArgs || typeArgs.length === 0) return;
+
+    this.append("(");
+    for (const typeArg of typeArgs) {
+      this.walkType(typeArg);
+      if (Util.isNotLast(typeArg, typeArgs))
+        this.append(", ");
+    }
+    this.append(")");
+  }
+
+  private walkArguments(args?: NodeArray<Expression> | undefined): void {
+    if (!args || args.length === 0) return;
+
+    this.append("(");
+    for (const arg of args) {
+      this.walk(arg);
+      if (Util.isNotLast(arg, args))
+        this.append(", ");
+    }
+    this.append(")");
+  }
+
   private appendClassDeclaration(
     walkMembers: () => void,
     name?: Identifier,
@@ -1263,20 +1276,11 @@ export default class CodeGenerator extends StringBuilder {
         const ref = <TypeReferenceNode>type;
         const typeName = this.getMappedType(ref.typeName.getText(this.sourceNode));
         this.append(typeName);
-        if (ref.typeArguments) {
-          this.append("(");
-          for (const typeArg of ref.typeArguments) {
-            this.walkType(typeArg);
-            if (Util.isNotLast(typeArg, ref.typeArguments))
-              this.append(", ");
-          }
-          this.append(")");
-
-          if (typeName === "Hash") {
-            const [ keyType, valueType ] = ref.typeArguments;
-            this.meta.currentHashKeyType = this.getMappedType(keyType.getText(this.sourceNode));
-            this.meta.currentHashValueType = this.getMappedType(valueType.getText(this.sourceNode));
-          }
+        this.walkTypeArguments(ref.typeArguments);
+        if (ref.typeArguments && typeName === "Hash") {
+          const [ keyType, valueType ] = ref.typeArguments;
+          this.meta.currentHashKeyType = this.getMappedType(keyType.getText(this.sourceNode));
+          this.meta.currentHashValueType = this.getMappedType(valueType.getText(this.sourceNode));
         }
 
         break;

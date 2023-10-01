@@ -2,4 +2,6 @@ dist/
 node_modules/
 bin/
 lib/
+examples/**/.git
+**/*.js
 shard.lock
