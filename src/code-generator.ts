@@ -41,6 +41,7 @@ import {
   PropertySignature,
   MethodSignature,
   MethodDeclaration,
+  GetAccessorDeclaration,
   TypeParameterDeclaration,
   ConstructorDeclaration,
   NewExpression,
@@ -596,15 +597,16 @@ export default class CodeGenerator extends StringBuilder {
 
         break;
       }
+      case SyntaxKind.GetAccessor:
       case SyntaxKind.MethodDeclaration: {
-        const declaration = <MethodDeclaration>node;
+        const method = <MethodDeclaration | GetAccessorDeclaration>node;
         this.appendMethod(
-          <Identifier>declaration.name,
-          declaration.parameters,
-          declaration.modifiers,
-          declaration.type,
-          declaration.typeParameters,
-          declaration.body
+          <Identifier>method.name,
+          method.parameters,
+          method.modifiers,
+          method.type,
+          method.typeParameters,
+          method.body
         );
 
         break;
