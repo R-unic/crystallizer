@@ -67,7 +67,8 @@ import {
   HeritageClause,
   SwitchStatement,
   CaseBlock,
-  isCaseClause
+  isCaseClause,
+  SetAccessorDeclaration
 } from "typescript";
 import path from "path";
 
@@ -197,6 +198,9 @@ export default class CodeGenerator extends StringBuilder {
           this.append(` ${this.getMappedBinaryOperator(operatorText)} `);
 
         this.walk(binary.right);
+        if (operatorText === "=")
+          this.newLine();
+
         break;
       }
       case SyntaxKind.ConditionalExpression: {
@@ -593,6 +597,19 @@ export default class CodeGenerator extends StringBuilder {
           signature.modifiers,
           signature.type,
           signature.typeParameters
+        );
+
+        break;
+      }
+      case SyntaxKind.SetAccessor: {
+        const method = <SetAccessorDeclaration>node;
+        this.appendMethod(
+          (<Identifier>method.name).text + "=",
+          method.parameters,
+          method.modifiers,
+          method.type,
+          method.typeParameters,
+          method.body
         );
 
         break;
@@ -1198,9 +1215,8 @@ export default class CodeGenerator extends StringBuilder {
           });
         else if (modifierTypes.includes(SyntaxKind.StaticKeyword))
           this.append("@@");
-        else
+        else if (modifierTypes.includes(SyntaxKind.ReadonlyKeyword))
           this.append("@");
-
 
         this.walk(param);
         if (Util.isNotLast(param, parameters))

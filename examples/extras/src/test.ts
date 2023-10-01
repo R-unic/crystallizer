@@ -1,12 +1,11 @@
 class A {
   protected a = 1;
 
-  public constructor(
-    protected b = 2
-  ) {}
+  public set b(val: number) {
+    this.a = val;
+  }
 
-  public sayStuff(): void {
-    console.log(this.a);
-    console.log(this.b);
+  public get b(): number {
+    return this.a;
   }
 }
