@@ -969,7 +969,7 @@ export default class CodeGenerator extends StringBuilder {
       }
 
       default:
-        throw new Error(`Unhandled AST syntax: ${Util.getSyntaxName(node.kind)}`);
+        return this.error(node, Util.getSyntaxName(node.kind), "UnhandledASTSyntax");
     }
   }
 
@@ -1341,7 +1341,7 @@ export default class CodeGenerator extends StringBuilder {
         }
 
         default:
-          throw new Error(`Unhandled modifier: ${Util.getSyntaxName(modifier.kind)}`);
+          return this.error(modifier, Util.getSyntaxName(modifier.kind), "UnhandledModifier");
       }
   }
 
@@ -1436,7 +1436,7 @@ export default class CodeGenerator extends StringBuilder {
       }
 
       default:
-        throw new Error(`Unhandled type node: ${Util.getSyntaxName(type.kind)}`);
+        return this.error(type, Util.getSyntaxName(type.kind), "UnhandledTypeNode");
     }
   }
 
