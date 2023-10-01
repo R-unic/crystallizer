@@ -14,6 +14,7 @@ export default new Map<string, string>([
   ["number", "Num"],
   ["Number", "Num"],
   ["string", "String"],
+  ["RegExp", "TsRegex"],
   ["void", "Nil"],
   ["undefined", "Nil"],
   ["null", "Nil"],

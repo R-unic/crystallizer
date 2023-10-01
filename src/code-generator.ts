@@ -68,7 +68,8 @@ import {
   SwitchStatement,
   CaseBlock,
   isCaseClause,
-  SetAccessorDeclaration
+  SetAccessorDeclaration,
+  RegularExpressionLiteral
 } from "typescript";
 import path from "path";
 
@@ -131,8 +132,7 @@ export default class CodeGenerator extends StringBuilder {
           if (declaration.type) {
             this.append(" : ");
             this.walkType(declaration.type)
-            if (declaration.type.kind === SyntaxKind.ArrayType)
-              this.meta.currentArrayType = this.getMappedType((<ArrayTypeNode>declaration.type).elementType.getText(this.sourceNode));
+            this.setCurrentArrayType(declaration.type);
           }
 
           if (declaration.initializer) {
@@ -416,8 +416,8 @@ export default class CodeGenerator extends StringBuilder {
           this.walkType(param.type);
           if (param.questionToken)
             this.append("?");
-          if (param.type.kind === SyntaxKind.ArrayType)
-            this.meta.currentArrayType = this.getMappedType((<ArrayTypeNode>param.type).elementType.getText(this.sourceNode));
+
+          this.setCurrentArrayType(param.type);
         }
 
         if (param.initializer) {
@@ -579,6 +579,7 @@ export default class CodeGenerator extends StringBuilder {
         if (declaration.type) {
           this.append(" : ");
           this.walkType(declaration.type);
+          this.setCurrentArrayType(declaration.type);
         }
 
         if (declaration.initializer) {
@@ -913,6 +914,10 @@ export default class CodeGenerator extends StringBuilder {
         this.append(")");
         break;
       }
+      case SyntaxKind.RegularExpressionLiteral: {
+        this.append(`/${(<RegularExpressionLiteral>node).text}/`);
+        break;
+      }
       case SyntaxKind.StringLiteral: {
         this.append(`"${(<StringLiteral>node).text}"`);
         break;
@@ -972,6 +977,11 @@ export default class CodeGenerator extends StringBuilder {
       default:
         return this.error(node, Util.getSyntaxName(node.kind), "UnhandledASTSyntax");
     }
+  }
+
+  private setCurrentArrayType(type?: TypeNode) {
+    if (type?.kind === SyntaxKind.ArrayType)
+      this.meta.currentArrayType = this.getMappedType((<ArrayTypeNode>type).elementType.getText(this.sourceNode));
   }
 
   private walkTypeArguments(typeArgs?: NodeArray<TypeNode> | undefined): void {
