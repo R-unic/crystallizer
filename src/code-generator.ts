@@ -284,6 +284,7 @@ export default class CodeGenerator extends StringBuilder {
       case SyntaxKind.TypeAssertionExpression:
       case SyntaxKind.AsExpression: {
         const cast = <Node & { expression: Expression; type: TypeNode }>node;
+        this.setCurrentArrayType(cast.type);
         this.walk(cast.expression);
         this.appendTypeCastMethod(cast.type);
         break;

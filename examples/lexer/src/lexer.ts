@@ -260,7 +260,7 @@ export class Lexer extends ArrayStepper<string> {
 
     const locationSpan = new LocationSpan(this.lastLocation, this.currentLocation);
     this.tokens.push(new Token(type, this.currentLexeme, value, locationSpan));
-    this.currentLexemeCharacters = [];
+    this.currentLexemeCharacters = <string[]>[];
     this.lastLocation = this.currentLocation;
   }
 
