@@ -10,7 +10,8 @@ export const enum Context {
   FunctionBody,
   SwitchStatement,
   EnumBody,
-  ClassBody
+  ClassBody,
+  TypeParameters
 }
 
 export interface MetaValues extends Record<string, unknown> {

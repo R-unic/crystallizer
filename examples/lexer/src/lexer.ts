@@ -73,20 +73,20 @@ export class ArrayStepper<T extends unknown = unknown> {
   protected position = 0;
 
   public constructor(
-      protected readonly input: ArrayLike<T>
+    protected readonly input: ArrayLike<T>
   ) {}
 
   protected peek(offset = 1): T | undefined {
-      const peekPosition = this.position + offset;
-      return peekPosition + 1 > this.input.length ? undefined : this.input[peekPosition];
+    const peekPosition = this.position + offset;
+    return peekPosition + 1 > this.input.length ? undefined : this.input[peekPosition];
   }
 
   protected get isFinished(): boolean {
-      return this.position + 1 > this.input.length;
+    return this.position + 1 > this.input.length;
   }
 
   protected get current(): T {
-      return this.peek(0)!;
+    return this.peek(0)!;
   }
 }
 
@@ -95,11 +95,17 @@ const NUMERIC = /^[0-9]$/;
 const WHITESPACE = /\s+/;
 
 export class Lexer extends ArrayStepper<string> {
+  private lastLocation: Location;
+
   private line = 1;
   private column = 1;
-  private lastLocation = new Location(this.line, this.column);
   private currentLexemeCharacters: string[] = [];
   private readonly tokens: Token[] = []
+
+  public constructor(source: string) {
+    super(source);
+    this.lastLocation = new Location(this.line, this.column);
+  }
 
   public tokenize(): Token[] {
     while (!this.isFinished)

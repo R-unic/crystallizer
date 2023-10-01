@@ -1082,10 +1082,15 @@ export default class CodeGenerator extends StringBuilder {
 
     if (typeParameters) {
       this.append("(");
+
+      const enclosingContext = this.meta.currentContext;
+      this.meta.currentContext = Context.TypeParameters;
+
       for (const typeParam of typeParameters)
         this.walk(typeParam.name);
 
       this.append(")");
+      this.meta.currentContext = enclosingContext;
     }
 
     const mixins: ExpressionWithTypeArguments[] = [];
@@ -1256,7 +1261,8 @@ export default class CodeGenerator extends StringBuilder {
     body?: Block
   ) {
 
-    this.meta.allFunctionIdentifiers.add(typeof name === "string" ? name : name.text);
+    const methodName = typeof name === "string" ? name : name.text;
+    this.meta.allFunctionIdentifiers.add(methodName);
     this.walkModifierList(modifiers?.values(), false);
     const modifierKinds = modifiers?.map(mod => mod.kind);
 
@@ -1265,9 +1271,7 @@ export default class CodeGenerator extends StringBuilder {
       this.append("private ");
 
     this.append("def ");
-
-    const isStatic = modifiers?.map(mod => mod.kind)?.includes(SyntaxKind.StaticKeyword);
-    if (isStatic)
+    if (modifiers?.map(mod => mod.kind)?.includes(SyntaxKind.StaticKeyword))
       this.append("self.");
 
     if (typeof name === "string")
@@ -1278,17 +1282,19 @@ export default class CodeGenerator extends StringBuilder {
     if (parameters.length > 0) {
       this.append("(");
       for (const param of parameters) {
-        const modifierTypes = param.modifiers?.map(mod => mod.kind) ?? [];
-        if (modifierTypes.includes(SyntaxKind.PublicKeyword))
+        const modifierKinds = param.modifiers?.map(mod => mod.kind) ?? [];
+        if (modifierKinds.includes(SyntaxKind.PublicKeyword)) {
+          this.append("@");
           this.meta.publicClassProperties.push(param);
-        else if (modifierTypes.includes(SyntaxKind.ProtectedKeyword))
+        } else if (modifierKinds.includes(SyntaxKind.ProtectedKeyword)) {
+          this.append("@");
           this.meta.protectedClassProperties.push({
             name: param.name,
             type: param.type
           });
-        else if (modifierTypes.includes(SyntaxKind.StaticKeyword))
+        } else if (modifierKinds.includes(SyntaxKind.StaticKeyword))
           this.append("@@");
-        else if (modifierTypes.includes(SyntaxKind.ReadonlyKeyword) || modifierTypes.includes(SyntaxKind.PrivateKeyword))
+        else if (modifierKinds.includes(SyntaxKind.PrivateKeyword) || modifierKinds.includes(SyntaxKind.ReadonlyKeyword))
           this.append("@");
 
         this.walk(param);
@@ -1393,10 +1399,6 @@ export default class CodeGenerator extends StringBuilder {
           this.append(isProperty ? "property " : "");
           break;
         }
-        case SyntaxKind.ReadonlyKeyword: {
-          this.append("getter ");
-          break;
-        }
         case SyntaxKind.StaticKeyword: {
           this.append(isProperty ? "@@" : "");
           break;
@@ -1409,6 +1411,7 @@ export default class CodeGenerator extends StringBuilder {
           this.pushFlag("Export");
           break;
         }
+        case SyntaxKind.ReadonlyKeyword:
         case SyntaxKind.DeclareKeyword: {
           break;
         }
