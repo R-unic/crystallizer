@@ -964,6 +964,7 @@ export default class CodeGenerator extends StringBuilder {
         return this.error(node, "Labeled statements are not supported.", "UnsupportedLabeledStatements");
       }
 
+      case SyntaxKind.NonNullExpression:
       case SyntaxKind.EndOfFileToken: {
         break;
       }
