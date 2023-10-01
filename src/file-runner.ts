@@ -9,7 +9,7 @@ import Crystallizer from "./crystallizer";
 import { exec } from "child_process";
 import { platform } from "os";
 
-export default class CLI {
+export default class FileRunner {
   private readonly compilerOptions: ts.CompilerOptions;
   private readonly projectDir: string;
 

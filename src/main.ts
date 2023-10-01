@@ -5,7 +5,7 @@ import { boolean, command, flag, optional, positional, run, string } from "cmd-t
 import path from "path";
 
 import Util from "./utility"
-import CLI from "./cli";
+import FileRunner from "./file-runner";
 
 let sliceIndex = 1;
 let [rootDirectory] = argv.slice(1);
@@ -23,8 +23,8 @@ const app = command({
     if (init)
       initializeProject(rootDirectory);
     else {
-      const cli = new CLI(rootDirectory);
-      cli.runAll();
+      const files = new FileRunner(rootDirectory);
+      files.runAll();
     }
   }
 });
