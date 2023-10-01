@@ -69,7 +69,8 @@ import {
   CaseBlock,
   isCaseClause,
   SetAccessorDeclaration,
-  RegularExpressionLiteral
+  RegularExpressionLiteral,
+  TemplateExpression
 } from "typescript";
 import path from "path";
 
@@ -916,6 +917,20 @@ export default class CodeGenerator extends StringBuilder {
       }
       case SyntaxKind.RegularExpressionLiteral: {
         this.append(`/${(<RegularExpressionLiteral>node).text}/`);
+        break;
+      }
+      case SyntaxKind.TemplateExpression: {
+        const template = <TemplateExpression>node;
+        this.append('"');
+        this.append(template.head.text);
+        for (const span of template.templateSpans) {
+          this.append("#{")
+          this.walk(span.expression);
+          this.append("}");
+          this.append(span.literal.text);
+        }
+
+        this.append('"');
         break;
       }
       case SyntaxKind.StringLiteral: {
