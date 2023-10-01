@@ -1261,7 +1261,7 @@ export default class CodeGenerator extends StringBuilder {
     const modifierKinds = modifiers?.map(mod => mod.kind);
 
     const isExported = this.consumeFlag("Export");
-    if (!isExported && !modifierKinds?.includes(SyntaxKind.PrivateKeyword) && !modifierKinds?.includes(SyntaxKind.StaticKeyword) && !modifierKinds?.includes(SyntaxKind.PublicKeyword))
+    if (this.meta.currentContext === Context.Global && !isExported && !modifierKinds?.includes(SyntaxKind.PrivateKeyword) && !modifierKinds?.includes(SyntaxKind.StaticKeyword) && !modifierKinds?.includes(SyntaxKind.PublicKeyword))
       this.append("private ");
 
     this.append("def ");
@@ -1288,7 +1288,7 @@ export default class CodeGenerator extends StringBuilder {
           });
         else if (modifierTypes.includes(SyntaxKind.StaticKeyword))
           this.append("@@");
-        else if (modifierTypes.includes(SyntaxKind.ReadonlyKeyword))
+        else if (modifierTypes.includes(SyntaxKind.ReadonlyKeyword) || modifierTypes.includes(SyntaxKind.PrivateKeyword))
           this.append("@");
 
         this.walk(param);
