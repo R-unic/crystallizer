@@ -10,8 +10,9 @@ import {
   LiteralLikeNode,
   StringLiteral,
   TypeNode,
-  ArrayLiteralExpression,
+  UnionTypeNode,
   ArrayTypeNode,
+  ArrayLiteralExpression,
   TypeAliasDeclaration,
   ModifierLike,
   TypeReferenceNode,
@@ -1282,6 +1283,15 @@ export default class CodeGenerator extends StringBuilder {
 
   private walkType(type: TypeNode): void {
     switch(type.kind) {
+      case SyntaxKind.UnionType: {
+        const union = <UnionTypeNode>type;
+        for (const type of union.types) {
+          this.walkType(type);
+          if (Util.isNotLast(type, union.types))
+            this.append(" | ");
+        }
+        break;
+      }
       case SyntaxKind.NumberKeyword: {
         this.append("Num");
         break;
