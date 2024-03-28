@@ -49,11 +49,11 @@ await main
 - cli:
   - watch mode
 - codegen:
-  - ignore advanced type generics (T extends, ternary operator, initializers)
-  - destructuring (this is so much harder than it needs to be)
-  - for..in
-  - macro the rest of the `console` library
-  - macro the `??` operator
+  - ignore advanced type generics (T extends, ternary operator, initializers) because Crystal doesn't support them
+  - destructuring (this is so much harder than it needs to be, thanks TypeScript devs)
+  - for..in (is this even necessary?)
+  - macro the rest of the `console` library (warn, error, info, clear, etc.)
+  - macro the `??` operator (`a != nil ? a : b`)
   - emit comments
   - disallow:
     - call expressions on arrow functions directly
@@ -63,4 +63,6 @@ await main
   - `Object`
   - `Promise`
 - test:
+  - `StringBuilder` class
+  - commonly used utility functions
   - if statements with `else`/`elsif` branches
