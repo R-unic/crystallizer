@@ -1,8 +1,5 @@
-import { BindingName, ParameterDeclaration, PropertyName, TypeNode } from "typescript";
+import type { BindingName, ParameterDeclaration, PropertyName, TypeNode } from "typescript";
 import Constants from "./constants";
-
-
-
 
 export const enum Context {
   Global,

@@ -1,12 +1,12 @@
 import { writeFileSync } from "fs";
 import {
-  CompilerOptions, Program, SourceFile,
   createCompilerHost,
   createProgram,
   flattenDiagnosticMessageText,
   getLineAndCharacterOfPosition,
   getPreEmitDiagnostics
 } from "typescript";
+import type { CompilerOptions, Program, SourceFile } from "typescript";
 import path from "path";
 
 import Log from "./logger";

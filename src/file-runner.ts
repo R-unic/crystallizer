@@ -1,4 +1,6 @@
 import { readFileSync, readdirSync, rmSync } from "fs";
+import { exec } from "child_process";
+import { platform } from "os";
 import ts from "typescript";
 import json5 from "json5";
 import path from "path";
@@ -6,8 +8,6 @@ import path from "path";
 import Util from "./utility";
 import Constants from "./constants";
 import Crystallizer from "./crystallizer";
-import { exec } from "child_process";
-import { platform } from "os";
 
 export default class FileRunner {
   private readonly compilerOptions: ts.CompilerOptions;

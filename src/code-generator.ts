@@ -1,7 +1,7 @@
-import {
+import { NodeFlags, SyntaxKind, isCaseClause, getLineAndCharacterOfPosition } from "typescript";
+import type {
   SourceFile,
-  Node, NodeFlags,
-  SyntaxKind,
+  Node,
   VariableDeclaration,
   VariableStatement,
   VariableDeclarationList,
@@ -16,7 +16,6 @@ import {
   TypeAliasDeclaration,
   ModifierLike,
   TypeReferenceNode,
-  getLineAndCharacterOfPosition,
   ObjectLiteralExpression,
   NodeArray,
   FunctionDeclaration,
@@ -67,22 +66,21 @@ import {
   HeritageClause,
   SwitchStatement,
   CaseBlock,
-  isCaseClause,
   SetAccessorDeclaration,
   RegularExpressionLiteral,
   TemplateExpression
 } from "typescript";
 import path from "path";
 
-import Util from "./utility";
-import Constants from "./constants";
-import Log from "./logger";
 import StringBuilder from "./string-builder";
 import AccessMacros from "./access-macros";
+import Constants from "./constants";
+import Util from "./utility";
+import Log from "./logger";
 
 import TYPE_MAP from "./type-map";
 import BINARY_OPERATOR_MAP from "./binary-operator-map";
-import { Context, DEFAULT_META, MetaValues } from "./code-generator-meta";
+import { Context, DEFAULT_META, type MetaValues } from "./code-generator-meta";
 
 export default class CodeGenerator extends StringBuilder {
   private readonly flags: string[] = [];

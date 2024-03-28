@@ -1,4 +1,4 @@
-import { PathLike, copyFileSync, mkdirSync, readdirSync, rmSync, statSync } from "fs";
+import { type PathLike, copyFileSync, mkdirSync, readdirSync, rmSync, statSync } from "fs";
 import path from "path";
 
 namespace Files {

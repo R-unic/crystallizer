@@ -1,4 +1,4 @@
-import CodeGenerator from "./code-generator";
+import type CodeGenerator from "./code-generator";
 
 const COMPLETE_REPLACE_NAMES = <const>["console.log"];
 const KEY_REPLACE_NAMES = <const>["toString"];

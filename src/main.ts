@@ -10,7 +10,7 @@ import FileRunner from "./file-runner";
 let sliceIndex = 1;
 let [rootDirectory] = argv.slice(1);
 if (rootDirectory.endsWith(".js"))
-  sliceIndex = 2
+  sliceIndex = 2;
 
 const app = command({
   name: "crystallizer",
