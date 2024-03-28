@@ -16,6 +16,7 @@ namespace Files {
     }
   }
 
+  // TODO: fix nested directory detection
   export function copyDirectory(source: string, destination: string): void {
     if (!isDirectory(destination))
       mkdirSync(destination);
