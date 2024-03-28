@@ -119,7 +119,7 @@ export default class CodeGenerator extends StringBuilder {
       case SyntaxKind.Identifier: {
         const { text } = <Identifier>node;
         const isTypeIdent = this.consumeFlag("TypeIdent");
-        this.append(isTypeIdent ? this.getMappedType(text) : this.getMappedIdentifier(text));
+        this.append(isTypeIdent ? this.getMappedIdentifier(text) : this.getMappedType(text));
         break;
       }
       case SyntaxKind.VariableDeclaration: {
@@ -1313,6 +1313,7 @@ export default class CodeGenerator extends StringBuilder {
       this.append(" forall ");
       for (const typeParam of typeParameters) {
         this.walk(typeParam.name);
+
         if (Util.isNotLast(typeParam, typeParameters))
           this.append(", ");
       }
@@ -1456,6 +1457,7 @@ export default class CodeGenerator extends StringBuilder {
       case SyntaxKind.TypeReference: {
         const ref = <TypeReferenceNode>type;
         const typeName = this.getMappedType(ref.typeName.getText(this.sourceNode));
+
         this.append(typeName);
         this.walkTypeArguments(ref.typeArguments);
         if (ref.typeArguments && typeName === "Hash") {

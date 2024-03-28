@@ -20,7 +20,7 @@ describe("CodeGenerator", () => {
     describe("should transpile literals", () => {
       it("basic datatypes", () => {
         testGenerate("69.420").should.equal("69.42");
-        testGenerate("'hello world!'").should.equal('"hello world!"');
+        testGenerate("'hello world!'").should.equal("'hello world!'");
         testGenerate("false && true").should.equal('false && true');
       });
       it("arrays", () => {
