@@ -221,12 +221,7 @@ export default class CodeGenerator extends StringBuilder {
         const postfix = <PostfixUnaryExpression>node;
         this.walk(postfix.operand);
         this.append(" ");
-
-        if (postfix.operator == SyntaxKind.PlusPlusToken)
-          this.append("+");
-        else
-          this.append("-");
-
+        this.append(postfix.operator == SyntaxKind.PlusPlusToken ? "+" : "-");
         this.append("= 1");
         break;
       }
@@ -391,7 +386,7 @@ export default class CodeGenerator extends StringBuilder {
         break;
       }
 
-      // FUNCTION STUFF STATEMENTS
+      // FUNCTION STUFF
       case SyntaxKind.ReturnStatement: {
         const statement = <ReturnStatement>node;
         this.pushFlag("Returned");
@@ -485,7 +480,7 @@ export default class CodeGenerator extends StringBuilder {
         break;
       }
 
-      // CLASS STUFF STATEMENTS
+      // CLASS STUFF
       case SyntaxKind.EnumDeclaration: {
         const declaration = <EnumDeclaration>node;
         this.walkModifiers(declaration);
@@ -1021,25 +1016,35 @@ export default class CodeGenerator extends StringBuilder {
         break;
       }
 
-      case SyntaxKind.LabeledStatement: {
+      case SyntaxKind.LabeledStatement:
         return this.error(node, "Labeled statements are not supported.", "UnsupportedLabeledStatements");
-      }
 
+      // skip
       case SyntaxKind.NonNullExpression:
-      case SyntaxKind.EndOfFileToken: {
+      case SyntaxKind.EndOfFileToken:
         break;
-      }
 
+      // if we encounter an AST node that we don't have logic for, just error out bc it's not implemented
       default:
         return this.error(node, Util.getSyntaxName(node.kind), "UnhandledASTSyntax");
     }
   }
 
+  /**
+   * Used to keep track of the current type of an array being defined
+   * @param type The type node to set the current array type to
+   */
   private setCurrentArrayType(type?: TypeNode) {
     if (type?.kind === SyntaxKind.ArrayType)
       this.meta.currentArrayType = this.getMappedType((<ArrayTypeNode>type).elementType.getText(this.sourceNode));
   }
 
+  /**
+   * This codegens code for type arguments including enclosing parentheses
+   *
+   * For example: `get<number>("gold")`
+   * @param typeArgs
+   */
   private walkTypeArguments(typeArgs?: NodeArray<TypeNode> | undefined): void {
     if (!typeArgs || typeArgs.length === 0) return;
 
@@ -1052,6 +1057,12 @@ export default class CodeGenerator extends StringBuilder {
     this.append(")");
   }
 
+  /**
+   * This codegens code for runtime arguments including enclosing parentheses
+   *
+   * For example: `set("gold", 2)`
+   * @param typeArgs
+   */
   private walkArguments(args?: NodeArray<Expression> | undefined): void {
     if (!args || args.length === 0) return;
 
@@ -1064,6 +1075,15 @@ export default class CodeGenerator extends StringBuilder {
     this.append(")");
   }
 
+  /**
+   * Codegens a class declaration
+   *
+   * Don't ever ask me about this function it's a dumpster fire
+   * @param walkMembers Function that appends the members of the class, called when ready
+   * @param name The identifier node representing the name of the class
+   * @param typeParameters A list of type parameters defined for the class
+   * @param heritageClauses A list of clauses representing inheritance (`extends ...`, `implements ...`)
+   */
   private appendClassDeclaration(
     walkMembers: () => void,
     name?: Identifier,
@@ -1159,13 +1179,18 @@ export default class CodeGenerator extends StringBuilder {
     this.meta.currentContext = enclosingContext
   }
 
-  private appendBlock<T extends Node & { statements: NodeArray<Statement> }>(node: T, module = false): void {
+  /**
+   * Codegens a scoped block of code
+   * @param node A node including a list of statements in the block
+   * @param namespace Whether or not the block is a block for a namespace/module declaration
+   */
+  private appendBlock<T extends Node & { statements: NodeArray<Statement> }>(node: T, namespace = false): void {
     const enclosingContext = this.meta.currentContext;
     this.meta.currentContext = Context.Block;
     this.pushIndentation();
     this.newLine();
 
-    if (module) {
+    if (namespace) {
       this.append("extend self");
       this.newLine(2);
     }
@@ -1177,6 +1202,11 @@ export default class CodeGenerator extends StringBuilder {
     this.meta.currentContext = enclosingContext;
   }
 
+  /**
+   * Codegens the arguments for a function call including parentheses
+   * @param callArguments A list of expression nodes representing the arguments passed
+   * @param blockParameter Whether or not the function included a block parameter (don't quote me on this)
+   */
   private appendCallExpressionArguments(callArguments: NodeArray<Expression> | Expression[], blockParameter: boolean): void {
     let blockName: Identifier | undefined;
     if (callArguments.length > 0) {
@@ -1187,13 +1217,13 @@ export default class CodeGenerator extends StringBuilder {
       for (const arg of callArguments)
         if (arg.kind === SyntaxKind.Identifier && this.meta.allFunctionIdentifiers.has((<Identifier>arg).text)) {
           if (providedBlock || providedArrowFunction)
-            this.error(arg, "Functions may only have one function argument.", "MultipleFunctionsPassed");
+            this.error(arg, "Functions may only have one function argument. This is a Crystal limitation.", "MultipleFunctionsPassed");
 
           blockName = <Identifier>arg;
           providedBlock = true;
         } else if (arg.kind === SyntaxKind.ArrowFunction) {
           if (providedBlock || providedArrowFunction)
-            this.error(arg, "Functions may only have one function argument.", "MultipleFunctionsPassed");
+            this.error(arg, "Functions may only have one function argument. This is a Crystal limitation.", "MultipleFunctionsPassed");
 
           providedArrowFunction = true;
           this.popLastPart();
@@ -1235,13 +1265,10 @@ export default class CodeGenerator extends StringBuilder {
       this.append("(nil)");
   }
 
-  private handleExporting(): void {
-    if (this.meta.currentContext !== Context.Global) return;
-    const isExported = this.consumeFlag("Export");
-    if (!isExported)
-      this.append("private ");
-  }
-
+  /**
+   * Codegens the parameters of a function (or callable declaration) not including parentheses
+   * @param fn The function (or callable declaration) to append the parameters of
+   */
   private appendParameters(fn: { parameters: NodeArray<ParameterDeclaration>; }): void {
     for (const parameter of fn.parameters) {
       this.walk(parameter)
@@ -1250,11 +1277,31 @@ export default class CodeGenerator extends StringBuilder {
     }
   }
 
+  /**
+   * Handle members exported from modules
+   */
+  private handleExporting(): void {
+    if (this.meta.currentContext !== Context.Global) return;
+
+    const isExported = this.consumeFlag("Export");
+    if (!isExported)
+      this.append("private ");
+  }
+
+  /**
+   * Codegens a method of a class
+   * @param name The identifier node representing the name of the method
+   * @param parameters A list of expression nodes representing the parameters defined
+   * @param modifiers Modifiers given to the method (public, private, etc.)
+   * @param returnType The type returned by the method
+   * @param typeParameters Any generics given to the method
+   * @param body The block representing the code inside of the method
+   */
   private appendMethod(
     name: Identifier | string,
     parameters: NodeArray<ParameterDeclaration>,
     modifiers?: NodeArray<ModifierLike>,
-    type?: TypeNode,
+    returnType?: TypeNode,
     typeParameters?: NodeArray<TypeParameterDeclaration>,
     body?: Block
   ) {
@@ -1302,9 +1349,9 @@ export default class CodeGenerator extends StringBuilder {
       this.append(")");
     }
 
-    if (type) {
+    if (returnType) {
       this.append(" : ");
-      this.walkType(type);
+      this.walkType(returnType);
     }
 
     if (typeParameters) {
@@ -1348,6 +1395,10 @@ export default class CodeGenerator extends StringBuilder {
     this.newLine();
   }
 
+  /**
+   * Converts a TypeScript type casting expression (such as `"a" as number`) to a runtime Crystal conversion if possible, otherwise just use the built-in Crystal `.as()` method
+   * @param type The type to cast to
+   */
   private appendTypeCastMethod(type: TypeNode) {
     if (Constants.UNCASTABLE_TYPES.includes(type.kind)) return;
     this.append(".");
@@ -1379,10 +1430,20 @@ export default class CodeGenerator extends StringBuilder {
     }
   }
 
+  /**
+   * Codegens the modifiers of a variable, field, method, class, etc.
+   * @param container What is receiving the modifiers
+   * @param isProperty Whether or not the container is a class property
+   */
   private walkModifiers(container: { modifiers?: NodeArray<ModifierLike> }, isProperty = true): void {
     this.walkModifierList(container.modifiers?.values(), isProperty);
   }
 
+  /**
+   * Codegens a list of modifiers
+   * @param modifiers The list of modifiers to codegen
+   * @param isProperty Whether or not what's receiving the modifiers is a class property
+   */
   private walkModifierList(modifiers?: IterableIterator<ModifierLike>, isProperty = true) {
     for (const modifier of modifiers ?? [].values())
       switch (modifier.kind) {
@@ -1420,6 +1481,10 @@ export default class CodeGenerator extends StringBuilder {
       }
   }
 
+  /**
+   * Codegens a type reference
+   * @param type The type being referred to
+   */
   private walkType(type: TypeNode): void {
     switch(type.kind) {
       case SyntaxKind.UnionType: {
@@ -1516,34 +1581,50 @@ export default class CodeGenerator extends StringBuilder {
     }
   }
 
+  /**
+   * Walk through the children of a node and codegen
+   */
   private walkChildren(node: Node): void {
     for (const child of node.getChildren())
       this.walk(child);
   }
 
+  /**
+   * Add a *valid* node flag to the current list of flags
+   * @param flag The node flag to add
+   */
   private walkFlag(flag: NodeFlags): void {
     if (flag == NodeFlags.Const) return; // don't worry abt constants
     if (flag == NodeFlags.Let) return; // don't worry about let
     this.pushFlag(NodeFlags[flag]);
   }
 
+  /**
+   * Add any node flag to the current list of flags
+   * @param flag The node flag to add
+   */
   private pushFlag(flag: string) {
     if (this.flags.includes(flag)) return;
     this.flags.push(flag);
   }
 
+  /**
+   * Returns the conversion for a TypeScript identifier to a Crystal identifier
+   * @param text The text behind the original identifier
+   */
   private getMappedIdentifier(text: string): string {
     const replaced = text
       .replace(/Error/, "Exception")
       .replace(/undefined/, "nil")
       .replace(/null/, "nil");
 
-    if (/^[A-Z_]+$/.test(replaced) && this.meta.currentContext === Context.Global)
-      return replaced.toLowerCase();
-    else
-      return replaced;
+    return (/^[A-Z_]+$/.test(replaced) && this.meta.currentContext === Context.Global) ? replaced.toLowerCase() : replaced;
   }
 
+  /**
+   * Returns the conversion for a TypeScript type to a Crystal type
+   * @param text The text behind the original type
+   */
   private getMappedType(text: string): string {
     let [ typeName, genericList ] = text.replace(">", "").split("<", 1);
     const generics = (genericList ?? "")
@@ -1562,10 +1643,18 @@ export default class CodeGenerator extends StringBuilder {
     return mappedType;
   }
 
+  /**
+   * Returns the conversion for a TypeScript binary operator to a Crystal binary operator
+   * @param text The text behind the original binary operator
+   */
   private getMappedBinaryOperator(text: string): string {
     return BINARY_OPERATOR_MAP.get(text) ?? text;
   }
 
+  /**
+   * If a the last flag in the flag list matches `flag`, then this removes it and returns true
+   * @param flag The flag to possibly consume
+   */
   private consumeFlag(flag: string): boolean {
     const lastFlag = this.flags[this.flags.length - 1];
     const matched = flag == lastFlag;
@@ -1575,6 +1664,10 @@ export default class CodeGenerator extends StringBuilder {
     return matched;
   }
 
+  /**
+   * Reset the meta value for each key in `keys`
+   * @param keys The keys of meta to reset
+   */
   private resetMeta(...keys: (keyof MetaValues)[]): void {
     for (const key of keys) {
       if (DEFAULT_META[key] !== undefined) continue;
@@ -1582,6 +1675,12 @@ export default class CodeGenerator extends StringBuilder {
     }
   }
 
+  /**
+   * Logs a Crystallizer code generation error
+   * @param node The node that triggered the error
+   * @param message The message shown to the user, being the reason for the error
+   * @param errorType The type of error that was thrown
+   */
   private error(node: Node, message: string, errorType: string) {
     const { line, character } = getLineAndCharacterOfPosition(this.sourceNode, node.getStart(this.sourceNode));
     Log.error(
